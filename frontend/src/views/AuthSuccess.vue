@@ -1,0 +1,30 @@
+<template>
+  <div class="text-center py-12">
+    <h2 class="text-2xl font-bold text-green-600 mb-4">Authentication Successful!</h2>
+    <p class="text-gray-600 mb-4">You have been successfully connected to Strava.</p>
+    <p class="text-gray-500">Redirecting to home...</p>
+  </div>
+</template>
+
+<script setup>
+import { onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+
+const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+
+onMounted(async () => {
+  const token = route.query.token
+
+  if (token) {
+    authStore.setToken(token)
+    await authStore.checkAuthStatus()
+  }
+
+  setTimeout(() => {
+    router.push('/')
+  }, 2000)
+})
+</script>
