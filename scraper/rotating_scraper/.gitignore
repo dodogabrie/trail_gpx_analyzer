@@ -1,0 +1,9 @@
+# Sensitive credentials
+apps_config.json
+
+# Scraper state
+scraper_state.json
+
+# Python cache
+__pycache__/
+*.pyc

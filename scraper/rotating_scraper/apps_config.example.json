@@ -1,0 +1,37 @@
+{
+  "apps": [
+    {
+      "name": "App1",
+      "client_id": "YOUR_CLIENT_ID_1",
+      "client_secret": "YOUR_CLIENT_SECRET_1",
+      "access_token": "",
+      "refresh_token": "",
+      "expires_at": 0,
+      "requests_15min": 0,
+      "requests_daily": 0,
+      "window_start": 0
+    },
+    {
+      "name": "App2",
+      "client_id": "YOUR_CLIENT_ID_2",
+      "client_secret": "YOUR_CLIENT_SECRET_2",
+      "access_token": "",
+      "refresh_token": "",
+      "expires_at": 0,
+      "requests_15min": 0,
+      "requests_daily": 0,
+      "window_start": 0
+    },
+    {
+      "name": "App3",
+      "client_id": "YOUR_CLIENT_ID_3",
+      "client_secret": "YOUR_CLIENT_SECRET_3",
+      "access_token": "",
+      "refresh_token": "",
+      "expires_at": 0,
+      "requests_15min": 0,
+      "requests_daily": 0,
+      "window_start": 0
+    }
+  ]
+}

@@ -1,5 +1,28 @@
 data/
 
+# Processed data folders
+data_analysis/data/
+scraper/data/
+
+# Keep models tracked
+!data_analysis/predictor/*.joblib
+!data_analysis/predictor/*.pkl
+!data_analysis/predictor/*.h5
+!data_analysis/predictor/*.model
+
+# Virtual environments
+data_analysis/venv/
+backend/venv/
+scraper/venv/
+
+# Frontend
+frontend/node_modules/
+frontend/.env
+
+# Backend
+backend/instance/
+backend/.env
+
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/

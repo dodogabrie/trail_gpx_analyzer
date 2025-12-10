@@ -1,0 +1,14 @@
+# Curated Trail Running Activities
+# Add Strava activity IDs here (one per line)
+# Comments starting with # are ignored
+#
+# How to find activity IDs:
+# 1. Browse Strava (Explore, Segments, Pro athletes)
+# 2. Copy activity URL: https://www.strava.com/activities/{ID}
+# 3. Paste ID below
+#
+# Example:
+# 16320173559  # UTMB 2024 - Elite finisher
+#
+# Your activities:
+
