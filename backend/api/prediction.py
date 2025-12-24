@@ -190,15 +190,17 @@ def get_calibration_activities():
         # Filter to runs only (type='Run')
         activities = [a for a in activities if a.get('type') == 'Run']
 
-        # Get GPX distance if provided for similarity marking
+        # Get GPX route info if provided for similarity scoring
         gpx_id = request.args.get('gpx_id', type=int)
         target_distance = None
+        target_elevation = None
         if gpx_id:
             gpx_file = GPXFile.query.filter_by(id=gpx_id, user_id=user.id).first()
             if gpx_file and gpx_file.data:
-                target_distance = gpx_file.data['total_distance']
+                target_distance = gpx_file.data.get('total_distance')
+                target_elevation = gpx_file.data.get('total_ascent', 0)
 
-        # Format activities
+        # Format activities with similarity scoring
         formatted = []
         for activity in activities:
             # Check if we have cached streams
@@ -207,25 +209,66 @@ def get_calibration_activities():
                 strava_id=activity['id']
             ).first()
 
+            # Calculate similarity score for ultra trail matching
+            similarity_score = 0.0
             recommended = False
+
             if target_distance:
-                dist_diff = abs(activity['distance'] - target_distance)
-                recommended = (dist_diff / target_distance) < 0.15
+                act_distance = activity['distance']
+                act_elevation = activity.get('total_elevation_gain', 0)
+
+                # 1. Distance similarity (0-1, weight: 40%)
+                dist_diff_pct = abs(act_distance - target_distance) / max(target_distance, 1)
+                distance_sim = max(0, 1 - dist_diff_pct)
+
+                # 2. Elevation similarity (0-1, weight: 30%)
+                elevation_sim = 0.5  # Neutral if no elevation data
+                if target_elevation and target_elevation > 100:  # Route has significant elevation
+                    elev_diff_pct = abs(act_elevation - target_elevation) / max(target_elevation, 1)
+                    elevation_sim = max(0, 1 - elev_diff_pct)
+
+                # 3. Effort type bonus (weight: 30%)
+                # For long routes (>25km), prioritize long runs over daily workouts
+                effort_bonus = 0.5  # Neutral default
+                if target_distance > 25000:  # Long route (>25km)
+                    if act_distance > 20000:  # Long run
+                        effort_bonus = 1.0  # Strong preference
+                    elif act_distance < 15000:  # Short workout
+                        effort_bonus = 0.2  # Penalize
+
+                # For ultra routes (>40km), heavily prioritize ultra-distance activities
+                if target_distance > 40000:  # Ultra route
+                    if act_distance > 35000:  # Ultra-distance run
+                        effort_bonus = 1.0
+                    elif act_distance < 25000:  # Not ultra-distance
+                        effort_bonus = 0.1  # Strong penalty
+
+                # Combined similarity score (0-1)
+                similarity_score = (
+                    distance_sim * 0.4 +
+                    elevation_sim * 0.3 +
+                    effort_bonus * 0.3
+                )
+
+                # Recommended if score > 0.6
+                recommended = similarity_score > 0.6
 
             formatted.append({
                 'strava_id': activity['id'],
                 'name': activity['name'],
                 'distance': activity['distance'],
                 'distance_km': round(activity['distance'] / 1000, 2),
+                'elevation_gain': activity.get('total_elevation_gain', 0),
                 'start_date': activity['start_date'],
                 'has_streams': cached is not None and cached.streams is not None,
                 'recommended': recommended,
+                'similarity_score': round(similarity_score, 3),
                 'moving_time': activity.get('moving_time'),
                 'elapsed_time': activity.get('elapsed_time')
             })
 
-        # Sort: recommended first, then by date
-        formatted.sort(key=lambda x: (x['recommended'], x['start_date']), reverse=True)
+        # Sort by similarity score (best matches first), then by date
+        formatted.sort(key=lambda x: (x['similarity_score'], x['start_date']), reverse=True)
 
         # Limit results
         limit = request.args.get('limit', 50, type=int)

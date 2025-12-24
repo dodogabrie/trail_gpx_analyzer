@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Analysis from '../views/Analysis.vue'
 import Prediction from '../views/Prediction.vue'
+import Performance from '../views/Performance.vue'
 import AuthSuccess from '../views/AuthSuccess.vue'
 import AuthError from '../views/AuthError.vue'
 
@@ -22,6 +23,11 @@ const routes = [
     name: 'Prediction',
     component: Prediction,
     props: true
+  },
+  {
+    path: '/performance',
+    name: 'Performance',
+    component: Performance
   },
   {
     path: '/auth-success',

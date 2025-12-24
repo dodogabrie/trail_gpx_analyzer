@@ -1,5 +1,8 @@
 <template>
   <div class="container mx-auto px-4 py-6">
+    <!-- Achievement Notifications -->
+    <AchievementNotification />
+
     <div class="mb-6">
       <h1 class="text-3xl font-bold">Route Time Prediction</h1>
       <p class="text-gray-600 mt-2">
@@ -152,6 +155,7 @@ import { useAuthStore } from '../stores/auth'
 import ActivitySelector from '../components/ActivitySelector.vue'
 import CalibrationEditor from '../components/CalibrationEditor.vue'
 import PredictionResults from '../components/PredictionResults.vue'
+import AchievementNotification from '../components/AchievementNotification.vue'
 
 const route = useRoute()
 const gpxStore = useGpxStore()

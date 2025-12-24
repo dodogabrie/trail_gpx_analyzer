@@ -35,11 +35,19 @@
                 v-if="activity.recommended"
                 class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded"
               >
-                Recommended
+                {{ Math.round(activity.similarity_score * 100) }}% match
+              </span>
+              <span
+                v-else-if="activity.similarity_score > 0"
+                class="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded"
+              >
+                {{ Math.round(activity.similarity_score * 100) }}%
               </span>
             </div>
             <div class="text-sm text-gray-600 mt-1">
               <span>{{ activity.distance_km }} km</span>
+              <span v-if="activity.elevation_gain" class="mx-2">•</span>
+              <span v-if="activity.elevation_gain">{{ Math.round(activity.elevation_gain) }}m D+</span>
               <span class="mx-2">•</span>
               <span>{{ formatDate(activity.start_date) }}</span>
             </div>

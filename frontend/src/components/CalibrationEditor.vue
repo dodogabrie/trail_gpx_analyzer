@@ -78,13 +78,65 @@
       </div>
 
       <div class="lg:col-span-2 bg-white border border-gray-200 rounded p-4">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between mb-2">
           <h3 class="font-semibold">Pace Profile (Star Plot)</h3>
           <div class="text-sm text-gray-500">
             Baseline vs Your Personalization
           </div>
         </div>
-        <div class="text-xs text-gray-500 mt-1">
+
+        <!-- Period Selector & Comparison Toggle -->
+        <div v-if="performanceSnapshots.length > 0" class="flex items-center gap-3 mb-2">
+          <div class="flex gap-1">
+            <button
+              class="px-2 py-1 text-xs rounded transition-colors"
+              :class="selectedPeriod === 'current' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'"
+              @click="selectedPeriod = 'current'"
+            >
+              This Week
+            </button>
+            <button
+              v-if="performanceSnapshots.length > 1"
+              class="px-2 py-1 text-xs rounded transition-colors"
+              :class="selectedPeriod === 'last_week' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'"
+              @click="selectedPeriod = 'last_week'"
+            >
+              Last Week
+            </button>
+            <button
+              v-if="performanceSnapshots.length > 4"
+              class="px-2 py-1 text-xs rounded transition-colors"
+              :class="selectedPeriod === 'last_month' ? 'bg-blue-600 text-white' : 'bg-gray-100 hover:bg-gray-200'"
+              @click="selectedPeriod = 'last_month'"
+            >
+              Last Month
+            </button>
+          </div>
+          <label v-if="getPreviousSnapshot" class="flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+            <input type="checkbox" v-model="showComparison" class="rounded">
+            <span>Show comparison</span>
+          </label>
+        </div>
+
+        <!-- Trend Indicators -->
+        <div v-if="Object.keys(getImprovements).length > 0" class="flex gap-3 text-xs mb-2">
+          <div v-for="grade in [0, 10, -10]" :key="grade" class="flex items-center gap-1">
+            <span class="text-gray-600">{{ grade >= 0 ? `+${grade}` : grade }}%:</span>
+            <span
+              v-if="getImprovements[grade]"
+              :class="{
+                'text-green-600': getImprovements[grade].improving,
+                'text-red-600': getImprovements[grade].declining,
+                'text-gray-500': !getImprovements[grade].improving && !getImprovements[grade].declining
+              }"
+            >
+              {{ getImprovements[grade].improving ? '↑' : getImprovements[grade].declining ? '↓' : '→' }}
+              {{ Math.abs(getImprovements[grade].pct).toFixed(1) }}%
+            </span>
+          </div>
+        </div>
+
+        <div class="text-xs text-gray-500">
           Larger area = better performance. Baseline (gray) is reference, your personalization (blue) shows deviation.
         </div>
         <div class="text-xs font-medium text-blue-600">
@@ -200,7 +252,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { RadarChart } from 'echarts/charts'
@@ -225,6 +277,13 @@ const radarDisplayOrder = [0, -10, -20, -30, 30, 20, 10] // Counter-clockwise fr
 
 const editableFlatPace = ref(props.flatPace)
 const editableAnchorRatios = reactive({})
+
+// Dynamic performance tracking state
+const performanceSnapshots = ref([])
+const selectedPeriod = ref('current') // 'current', 'last_week', 'last_month'
+const comparisonSnapshot = ref(null)
+const showComparison = ref(false)
+const loadingSnapshots = ref(false)
 
 // Quick edit state
 const editingAnchor = ref(null)
@@ -316,6 +375,80 @@ const formatPace = (decimalMinutes) => {
 }
 
 const anchorSampleCounts = computed(() => props.diagnostics?.anchor_sample_counts || {})
+
+// Fetch performance snapshots from API
+const fetchPerformanceSnapshots = async () => {
+  loadingSnapshots.value = true
+  try {
+    const response = await fetch('http://localhost:5000/api/performance/snapshots?period_type=weekly&limit=8')
+    if (response.ok) {
+      const data = await response.json()
+      performanceSnapshots.value = data.snapshots || []
+      console.log('Loaded', performanceSnapshots.value.length, 'performance snapshots')
+    }
+  } catch (error) {
+    console.error('Failed to fetch performance snapshots:', error)
+  } finally {
+    loadingSnapshots.value = false
+  }
+}
+
+// Get snapshot for selected period
+const getCurrentSnapshot = computed(() => {
+  if (performanceSnapshots.value.length === 0) return null
+
+  if (selectedPeriod.value === 'current') {
+    return performanceSnapshots.value[0] // Most recent
+  } else if (selectedPeriod.value === 'last_week') {
+    return performanceSnapshots.value[1] || performanceSnapshots.value[0]
+  } else if (selectedPeriod.value === 'last_month') {
+    return performanceSnapshots.value[4] || performanceSnapshots.value[0]
+  }
+  return performanceSnapshots.value[0]
+})
+
+// Get comparison snapshot (previous week)
+const getPreviousSnapshot = computed(() => {
+  if (performanceSnapshots.value.length < 2) return null
+
+  const currentIndex = performanceSnapshots.value.indexOf(getCurrentSnapshot.value)
+  return performanceSnapshots.value[currentIndex + 1] || null
+})
+
+// Calculate improvement percentages
+const getImprovements = computed(() => {
+  const current = getCurrentSnapshot.value
+  const previous = getPreviousSnapshot.value
+
+  if (!current || !previous) return {}
+
+  const improvements = {}
+
+  for (const grade of anchorGrades) {
+    const gradeStr = String(grade)
+    const currentRatio = current.anchor_ratios?.[gradeStr]
+    const previousRatio = previous.anchor_ratios?.[gradeStr]
+
+    if (currentRatio && previousRatio) {
+      const currentPace = current.flat_pace * currentRatio
+      const previousPace = previous.flat_pace * previousRatio
+      const change = ((currentPace - previousPace) / previousPace) * 100
+
+      improvements[grade] = {
+        pct: change,
+        improving: change < -2, // 2% faster = improving
+        declining: change > 2   // 2% slower = declining
+      }
+    }
+  }
+
+  return improvements
+})
+
+// Mount hook to fetch snapshots
+onMounted(() => {
+  fetchPerformanceSnapshots()
+})
 
 const cleanedAnchorRatios = computed(() => {
   const out = {}
@@ -657,32 +790,76 @@ const radarChartOption = computed(() => {
       scale: true,
       splitNumber: 4
     },
-    series: [
-      {
-        name: 'Baseline (Global)',
-        type: 'radar',
-        symbolSize: 0,
-        silent: true, // Make baseline non-interactive
-        data: [
-          {
-            value: baselineData,
-            name: 'Baseline',
-            lineStyle: {
-              type: 'dashed',
-              width: 2,
-              color: '#9ca3af'
-            },
-            areaStyle: {
-              color: 'rgba(156, 163, 175, 0.2)'
+    series: (() => {
+      const seriesArray = [
+        {
+          name: 'Baseline (Global)',
+          type: 'radar',
+          symbolSize: 0,
+          silent: true,
+          data: [
+            {
+              value: baselineData,
+              name: 'Baseline',
+              lineStyle: {
+                type: 'dashed',
+                width: 2,
+                color: '#9ca3af'
+              },
+              areaStyle: {
+                color: 'rgba(156, 163, 175, 0.2)'
+              }
             }
+          ]
+        }
+      ]
+
+      // Add previous period comparison if available
+      const previousSnapshot = getPreviousSnapshot.value
+      if (showComparison.value && previousSnapshot) {
+        const previousData = radarDisplayOrder.map(grade => {
+          const globalRatio = interp1(
+            globalCurveSorted.map(p => p.grade),
+            globalCurveSorted.map(p => p.median),
+            grade
+          ) || 1.0
+
+          const userRatio = previousSnapshot.anchor_ratios?.[String(grade)]
+          if (!userRatio || !Number.isFinite(userRatio) || userRatio <= 0) {
+            return 1.0
           }
-        ]
-      },
-      {
+
+          return globalRatio / userRatio
+        })
+
+        seriesArray.push({
+          name: `Previous (${previousSnapshot.period})`,
+          type: 'radar',
+          symbolSize: 0,
+          silent: true,
+          data: [
+            {
+              value: previousData,
+              name: 'Previous',
+              lineStyle: {
+                type: 'dotted',
+                width: 2,
+                color: '#6b7280'
+              },
+              areaStyle: {
+                color: 'rgba(107, 114, 128, 0.1)'
+              }
+            }
+          ]
+        })
+      }
+
+      // Add current personalization
+      seriesArray.push({
         name: 'Your Personalization',
         type: 'radar',
         symbol: 'circle',
-        symbolSize: 18, // Even larger dots for clicking
+        symbolSize: 18,
         emphasis: {
           focus: 'self',
           lineStyle: {
@@ -714,8 +891,10 @@ const radarChartOption = computed(() => {
         ],
         // Enable click on data points
         silent: false
-      }
-    ]
+      })
+
+      return seriesArray
+    })()
   }
 })
 </script>
