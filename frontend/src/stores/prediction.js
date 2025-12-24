@@ -9,6 +9,12 @@ export const usePredictionStore = defineStore('prediction', {
     flatPace: null,
     calibrationDiagnostics: null,
 
+    // Calibration editor data
+    globalCurve: [],
+    calibrationActivityStreams: {},
+    editedFlatPace: null,
+    editedAnchorRatios: null,
+
     // Prediction
     prediction: null,
     similarActivities: [],
@@ -16,7 +22,7 @@ export const usePredictionStore = defineStore('prediction', {
     // UI state
     loading: false,
     error: null,
-    currentStep: 'select-activity' // 'select-activity', 'calibrating', 'predicting', 'results'
+    currentStep: 'select-activity' // 'select-activity', 'calibrating', 'edit-calibration', 'predicting', 'results'
   }),
 
   getters: {
@@ -66,17 +72,17 @@ export const usePredictionStore = defineStore('prediction', {
         this.calibrationDiagnostics = response.data.diagnostics
         this.selectedActivity = response.data.activity
 
-        // Automatically trigger prediction after calibration
-        if (gpxId) {
-          console.log('⏭️ Auto-triggering prediction for GPX', gpxId)
-          this.currentStep = 'predicting'
-          this.loading = false // Release loading for calibration
+        // Store calibration editor data
+        this.globalCurve = response.data.global_curve || []
+        this.calibrationActivityStreams = response.data.calibration_activity_streams || {}
 
-          // Trigger prediction immediately
-          await this.predictRouteTime(gpxId)
-        } else {
-          this.currentStep = 'predicting'
-        }
+        // Initialize edited values with computed values
+        this.editedFlatPace = this.flatPace
+        this.editedAnchorRatios = response.data.anchor_ratios || {}
+
+        // Go to edit-calibration step instead of auto-predicting
+        this.currentStep = 'edit-calibration'
+        this.loading = false
 
         return response.data
       } catch (error) {
@@ -89,26 +95,66 @@ export const usePredictionStore = defineStore('prediction', {
       }
     },
 
+    async saveCalibration(editedData) {
+      try {
+        await api.post('/prediction/save-calibration', {
+          flat_pace_min_per_km: editedData.flat_pace_min_per_km,
+          anchor_ratios: editedData.anchor_ratios,
+          calibration_activity_id: this.selectedActivity?.id
+        })
+
+        console.log('✅ Calibration saved to user profile')
+
+        // Update local state
+        this.editedFlatPace = editedData.flat_pace_min_per_km
+        this.editedAnchorRatios = editedData.anchor_ratios
+
+      } catch (error) {
+        console.error('❌ Failed to save calibration:', error)
+        // Don't throw - allow prediction to continue even if save fails
+      }
+    },
+
     async predictRouteTime(gpxId) {
       console.log('🚀 predictRouteTime called with gpxId:', gpxId)
       console.log('🔍 Current flatPace:', this.flatPace)
+      console.log('🔍 Edited flatPace:', this.editedFlatPace)
 
-      if (!this.flatPace) {
+      const flatPace = this.editedFlatPace || this.flatPace
+
+      if (!flatPace) {
         console.error('❌ No flat pace - must calibrate first')
         throw new Error('Must calibrate first')
       }
 
       this.loading = true
       this.error = null
+      this.currentStep = 'predicting'
 
       try {
         console.log('📡 Sending prediction request to backend...')
         console.log('   GPX ID:', gpxId)
-        console.log('   Flat Pace:', this.flatPace, 'min/km')
+        console.log('   Flat Pace:', flatPace, 'min/km')
+        console.log('   Anchor Ratios:', this.editedAnchorRatios)
+
+        // Convert frontend calibration activities to backend format
+        const cachedActivities = this.calibrationActivities.map(activity => ({
+          id: activity.strava_id,
+          name: activity.name,
+          distance: activity.distance,
+          start_date: activity.start_date,
+          moving_time: activity.moving_time,
+          elapsed_time: activity.elapsed_time,
+          type: 'Run'
+        }))
+
+        console.log(`   Sending ${cachedActivities.length} cached activities to avoid re-fetch`)
 
         const response = await api.post('/prediction/predict', {
           gpx_id: gpxId,
-          flat_pace_min_per_km: this.flatPace
+          flat_pace_min_per_km: flatPace,
+          anchor_ratios: this.editedAnchorRatios,
+          cached_activities: cachedActivities
         }, {
           timeout: 60000 // 60 second timeout
         })
@@ -131,7 +177,7 @@ export const usePredictionStore = defineStore('prediction', {
         } else {
           this.error = error.response?.data?.error || 'Prediction failed. Check browser console for details.'
         }
-        this.currentStep = 'select-activity'
+        this.currentStep = this.flatPace ? 'edit-calibration' : 'select-activity'
         throw error
       } finally {
         this.loading = false
@@ -143,6 +189,10 @@ export const usePredictionStore = defineStore('prediction', {
       this.selectedActivity = null
       this.flatPace = null
       this.calibrationDiagnostics = null
+      this.globalCurve = []
+      this.calibrationActivityStreams = {}
+      this.editedFlatPace = null
+      this.editedAnchorRatios = null
       this.prediction = null
       this.similarActivities = []
       this.currentStep = 'select-activity'

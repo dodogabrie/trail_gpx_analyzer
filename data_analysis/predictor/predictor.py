@@ -1,17 +1,58 @@
 """
-Route-time predictor built from grade→pace curves.
+Route-time predictor: STAGE 2 - Curve Personalization
 
-Pipeline:
-1. Build a global normalized pace curve from existing processed streams.
-   - Normalize each athlete by their flat pace (median pace on -1..1% grade).
-   - Bin by grade and aggregate median + IQR across athletes.
-2. Calibrate a user with a few anchor grades from one of their activities.
-   - Compute flat pace for the user.
-   - Compute pace ratios at anchor grades (pace/flat pace) using a small grade band.
-3. Personalize the curve by warping the global curve to hit the user's anchors.
-4. Predict a route time given a grade profile (distance_m, grade_percent) and the user's flat pace.
+This module handles STAGE 2 of the 3-stage prediction pipeline:
+Personalizing the global pace-grade curve using user anchor points.
 
-The code is self-contained and does not modify existing scripts.
+FULL PIPELINE CONTEXT:
+=====================
+
+STAGE 1: User Fingerprint (user_fingerprint.py)
+  - Extract user fitness metrics from 10-50 historical activities
+  - Output: user_endurance_score, user_recovery_rate, user_base_fitness
+
+STAGE 2: Curve Personalization (THIS MODULE)
+  - Build global pace-grade curve from all athletes
+  - Calibrate user's flat pace from recent activity
+  - Extract anchor pace ratios at key grades [-10%, 0%, +10%, etc]
+  - Warp global curve to match user's anchors
+  - Output: Personalized pace_ratio = f(grade) function
+
+STAGE 3: ML Residual Prediction (ml_residual.py)
+  - Use personalized curve + user fingerprint + ML model
+  - Predict segment-by-segment with fatigue/dynamics corrections
+  - Output: Total race time
+
+THIS MODULE'S ROLE (STAGE 2):
+============================
+
+1. Build global curve from all athletes:
+   - Normalize each athlete by flat pace (median pace on -1% to +1% grade)
+   - Bin by grade and aggregate median + IQR across athletes
+   - Result: Global pace_ratio = f(grade) baseline
+
+2. Calibrate user with anchor grades:
+   - Compute user's flat pace from recent activity
+   - Extract pace ratios at anchor grades (pace/flat_pace) using 2% grade window
+   - Example anchors: [-30%, -20%, -10%, 0%, +10%, +20%, +30%]
+
+3. Personalize curve:
+   - Warp global curve to match user's anchor ratios
+   - Smooth interpolation between anchors
+   - Result: Personalized curve specific to user's current form
+
+WHY CURVE PERSONALIZATION?
+=========================
+The global curve represents average athlete behavior, but users vary:
+- Some are stronger uphill climbers
+- Some are faster downhill runners
+- Recent training affects current performance
+
+Anchors capture user's CURRENT performance at key grades.
+Warping the curve makes predictions match user's actual capabilities.
+
+LIMITATION: Curve only models steady-state pace at each grade.
+STAGE 3 (ML) adds corrections for fatigue, recovery, and dynamics.
 """
 
 from __future__ import annotations
@@ -74,7 +115,14 @@ def iter_athlete_streams(athlete_dir: Path) -> Iterable[pd.DataFrame]:
     activities = _safe_load_json(activities_path)
     if not activities:
         return []
-    activity_ids = activities.get("activity_ids") or []
+
+    # Handle both JSON formats: {"activity_ids": [...]} and {"activities": [{"id": ...}, ...]}
+    activity_ids = activities.get("activity_ids")
+    if activity_ids is None and "activities" in activities:
+        activity_ids = [act["id"] for act in activities["activities"]]
+    if not activity_ids:
+        return []
+
     for activity_id in activity_ids:
         streams_path = athlete_dir / f"{activity_id}_streams.json"
         df = load_streams(streams_path)

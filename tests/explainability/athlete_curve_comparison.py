@@ -45,6 +45,7 @@ def collect_athlete_data_points(athlete_dir: Path, sample_fraction: float = 0.1)
     all_points = []
 
     for df in iter_athlete_streams(athlete_dir):
+        print(df.head())
         all_points.append(df[["grade_smooth", "pace_min_per_km"]])
 
     if not all_points:
@@ -73,47 +74,72 @@ def collect_athlete_data_points(athlete_dir: Path, sample_fraction: float = 0.1)
 
 
 def plot_athlete_calibration(
-    athlete_dir: Path,
-    global_curve: pd.DataFrame,
+    athlete_dir: Path = None,
+    global_curve: pd.DataFrame = None,
+    pace_at_grades: dict = None,
+    flat_pace_override: float = None,
+    athlete_id_override: str = "synthetic",
     save_path: Path = None,
 ):
     """
     Plot global curve vs athlete's personalized curve.
 
     Args:
-        athlete_dir: Path to athlete's data directory
+        athlete_dir: Path to athlete's data directory (or None for synthetic)
         global_curve: Global pace-grade curve
+        pace_at_grades: Dict {grade: pace} for synthetic testing (e.g., {-10: 4.0, 0: 5.0, 10: 6.5})
+        flat_pace_override: Flat pace for synthetic athlete (required if pace_at_grades provided)
+        athlete_id_override: ID for synthetic athlete
         save_path: Optional path to save plot
     """
-    athlete_id = athlete_dir.name
+    # Synthetic mode
+    if pace_at_grades is not None:
+        if flat_pace_override is None:
+            raise ValueError("flat_pace_override required when using pace_at_grades")
 
-    # Collect athlete data
-    print(f"Collecting data for athlete {athlete_id}...")
-    athlete_data = collect_athlete_data_points(athlete_dir, sample_fraction=0.05)
+        print(f"Using synthetic athlete data: {athlete_id_override}")
+        athlete_id = athlete_id_override
+        flat_pace = flat_pace_override
+        athlete_data = None  # No scatter points for synthetic
 
-    if athlete_data is None:
-        print(f"No data found for athlete {athlete_id}")
-        return
+        # Convert pace_at_grades to anchor_ratios
+        anchor_ratios = {g: pace / flat_pace for g, pace in pace_at_grades.items()}
+        print(f"Synthetic anchor points: {list(anchor_ratios.keys())}")
 
-    flat_pace = athlete_data["flat_pace"].iloc[0]
+    # Real athlete mode
+    else:
+        if athlete_dir is None:
+            raise ValueError("athlete_dir required when not using pace_at_grades")
 
-    # Get one activity for calibration
-    print("Computing anchor ratios...")
-    activity_stream = None
-    for df in iter_athlete_streams(athlete_dir):
-        activity_stream = df
-        break
+        athlete_id = athlete_dir.name
 
-    if activity_stream is None:
-        print("No activity stream found")
-        return
+        # Collect athlete data
+        print(f"Collecting data for athlete {athlete_id}...")
+        athlete_data = collect_athlete_data_points(athlete_dir, sample_fraction=0.05)
 
-    anchor_ratios = compute_anchor_ratios(activity_stream, flat_pace)
-    if not anchor_ratios:
-        print("No anchor ratios found")
-        return
+        if athlete_data is None:
+            print(f"No data found for athlete {athlete_id}")
+            return
 
-    print(f"Found {len(anchor_ratios)} anchor points: {list(anchor_ratios.keys())}")
+        flat_pace = athlete_data["flat_pace"].iloc[0]
+
+        # Get one activity for calibration
+        print("Computing anchor ratios...")
+        activity_stream = None
+        for df in iter_athlete_streams(athlete_dir):
+            activity_stream = df
+            break
+
+        if activity_stream is None:
+            print("No activity stream found")
+            return
+
+        anchor_ratios = compute_anchor_ratios(activity_stream, flat_pace)
+        if not anchor_ratios:
+            print("No anchor ratios found")
+            return
+
+        print(f"Found {len(anchor_ratios)} anchor points: {list(anchor_ratios.keys())}")
 
     # Personalize curve
     print("Personalizing curve...")
@@ -122,16 +148,17 @@ def plot_athlete_calibration(
     # Create plot
     fig, ax = plt.subplots(figsize=(14, 8))
 
-    # Plot athlete's raw data points (scatter)
-    ax.scatter(
-        athlete_data["grade_smooth"],
-        athlete_data["pace_ratio"],
-        alpha=0.15,
-        s=5,
-        color="lightblue",
-        label="Athlete data points",
-        zorder=1,
-    )
+    # Plot athlete's raw data points (scatter) - only for real athletes
+    if athlete_data is not None:
+        ax.scatter(
+            athlete_data["grade_smooth"],
+            athlete_data["pace_ratio"],
+            alpha=0.15,
+            s=5,
+            color="lightblue",
+            label="Athlete data points",
+            zorder=1,
+        )
 
     # Plot global curve (median)
     ax.plot(
@@ -187,8 +214,9 @@ def plot_athlete_calibration(
     # Formatting
     ax.set_xlabel("Grade (%)", fontsize=13, fontweight="bold")
     ax.set_ylabel("Pace Ratio (pace / flat_pace)", fontsize=13, fontweight="bold")
+    data_type = "Synthetic" if pace_at_grades is not None else "Real"
     ax.set_title(
-        f"Athlete {athlete_id} Calibration\n"
+        f"{data_type} Athlete {athlete_id} Calibration\n"
         f"Flat Pace: {flat_pace:.2f} min/km | "
         f"Anchor Points: {len(anchor_ratios)}",
         fontsize=14,
@@ -229,28 +257,44 @@ def plot_athlete_calibration(
 
 
 def plot_multiple_athletes_comparison(
-    processed_root: Path,
-    global_curve: pd.DataFrame,
+    processed_root: Path = None,
+    global_curve: pd.DataFrame = None,
     num_athletes: int = 4,
+    synthetic_athletes: list = None,
     save_path: Path = None,
 ):
     """
     Plot comparison of multiple athletes' personalized curves.
 
     Args:
-        processed_root: Path to processed data root
+        processed_root: Path to processed data root (for real athletes)
         global_curve: Global pace-grade curve
-        num_athletes: Number of athletes to compare
+        num_athletes: Number of real athletes to compare
+        synthetic_athletes: List of dicts with 'name', 'flat_pace', 'pace_at_grades'
+                           e.g., [{'name': 'Fast', 'flat_pace': 4.5, 'pace_at_grades': {...}}]
         save_path: Optional path to save plot
     """
-    athlete_dirs = [
-        p for p in processed_root.iterdir()
-        if p.is_dir() and p.name.isdigit()
-    ][:num_athletes]
+    # Use synthetic athletes if provided
+    if synthetic_athletes is not None:
+        print(f"Using {len(synthetic_athletes)} synthetic athletes")
+        athlete_data = synthetic_athletes
+        is_synthetic = True
+    else:
+        # Use real athletes
+        if processed_root is None:
+            raise ValueError("processed_root required when not using synthetic_athletes")
 
-    if not athlete_dirs:
-        print("No athlete directories found")
-        return
+        athlete_dirs = [
+            p for p in processed_root.iterdir()
+            if p.is_dir() and p.name.isdigit()
+        ][:num_athletes]
+
+        if not athlete_dirs:
+            print("No athlete directories found")
+            return
+
+        athlete_data = athlete_dirs
+        is_synthetic = False
 
     fig, ax = plt.subplots(figsize=(14, 8))
 
@@ -266,43 +310,70 @@ def plot_multiple_athletes_comparison(
     )
 
     # Plot each athlete's personalized curve
-    colors = plt.cm.tab10(np.linspace(0, 1, num_athletes))
+    num_to_plot = len(athlete_data)
+    colors = plt.cm.tab10(np.linspace(0, 1, num_to_plot))
 
-    for i, athlete_dir in enumerate(athlete_dirs):
-        athlete_id = athlete_dir.name
-        print(f"Processing athlete {athlete_id}...")
+    for i, item in enumerate(athlete_data):
+        if is_synthetic:
+            # Synthetic athlete
+            athlete_id = item['name']
+            flat_pace = item['flat_pace']
+            pace_at_grades = item['pace_at_grades']
 
-        # Get activity for calibration
-        activity_stream = None
-        for df in iter_athlete_streams(athlete_dir):
-            activity_stream = df
-            break
+            print(f"Processing synthetic athlete {athlete_id}...")
+            anchor_ratios = {g: pace / flat_pace for g, pace in pace_at_grades.items()}
 
-        if activity_stream is None:
-            continue
-
-        try:
-            flat_pace = compute_flat_pace(activity_stream)
-            anchor_ratios = compute_anchor_ratios(activity_stream, flat_pace)
-
-            if anchor_ratios:
+            try:
                 personalized = personalize_curve(global_curve, anchor_ratios)
                 ax.plot(
                     personalized["grade"],
                     personalized["personalized_ratio"],
                     linewidth=2.5,
                     color=colors[i],
-                    label=f"Athlete {athlete_id} (flat: {flat_pace:.2f})",
+                    label=f"{athlete_id} (flat: {flat_pace:.2f})",
                     alpha=0.8,
                 )
-        except Exception as e:
-            print(f"  Skipped athlete {athlete_id}: {e}")
+            except Exception as e:
+                print(f"  Skipped synthetic athlete {athlete_id}: {e}")
+
+        else:
+            # Real athlete
+            athlete_dir = item
+            athlete_id = athlete_dir.name
+            print(f"Processing athlete {athlete_id}...")
+
+            # Get activity for calibration
+            activity_stream = None
+            for df in iter_athlete_streams(athlete_dir):
+                activity_stream = df
+                break
+
+            if activity_stream is None:
+                continue
+
+            try:
+                flat_pace = compute_flat_pace(activity_stream)
+                anchor_ratios = compute_anchor_ratios(activity_stream, flat_pace)
+
+                if anchor_ratios:
+                    personalized = personalize_curve(global_curve, anchor_ratios)
+                    ax.plot(
+                        personalized["grade"],
+                        personalized["personalized_ratio"],
+                        linewidth=2.5,
+                        color=colors[i],
+                        label=f"Athlete {athlete_id} (flat: {flat_pace:.2f})",
+                        alpha=0.8,
+                    )
+            except Exception as e:
+                print(f"  Skipped athlete {athlete_id}: {e}")
 
     # Formatting
     ax.set_xlabel("Grade (%)", fontsize=13, fontweight="bold")
     ax.set_ylabel("Pace Ratio (pace / flat_pace)", fontsize=13, fontweight="bold")
+    data_type = "Synthetic" if is_synthetic else "Real"
     ax.set_title(
-        "Comparison of Athlete-Specific Calibrations",
+        f"Comparison of {data_type} Athlete-Specific Calibrations",
         fontsize=14,
         fontweight="bold",
     )
@@ -329,33 +400,91 @@ def main():
     print(f"Building global curve from {processed_root}...")
     global_curve = build_global_curve(processed_root)
 
-    # Find athlete directories
-    athlete_dirs = [
-        p for p in processed_root.iterdir()
-        if p.is_dir() and p.name.isdigit()
-    ]
+    # Option 1: Use synthetic athletes for testing
+    USE_SYNTHETIC = False  # Set to False to use real athlete data
 
-    if not athlete_dirs:
-        print(f"No athlete directories found in {processed_root}")
-        return
+    if USE_SYNTHETIC:
+        print("\n=== Using Synthetic Athletes ===")
 
-    print(f"Found {len(athlete_dirs)} athletes")
+        # Define synthetic athlete profiles
+        synthetic_athletes = [
+            {
+                'name': 'Fast Runner',
+                'flat_pace': 4.0,
+                'pace_at_grades': {-10: 3.2, 0: 4.0, 5: 4.6, 10: 5.5, 15: 7.0}
+            },
+            {
+                'name': 'Moderate Runner',
+                'flat_pace': 5.5,
+                'pace_at_grades': {-10: 4.5, 0: 5.5, 5: 6.3, 10: 7.5, 15: 9.5}
+            },
+            {
+                'name': 'Hill Specialist',
+                'flat_pace': 5.0,
+                'pace_at_grades': {-10: 4.0, 0: 5.0, 5: 5.5, 10: 6.2, 15: 7.5}
+            },
+            {
+                'name': 'Downhill Specialist',
+                'flat_pace': 5.0,
+                'pace_at_grades': {-10: 3.5, 0: 5.0, 5: 6.0, 10: 7.5, 15: 9.5}
+            },
+        ]
 
-    # Plot first athlete in detail
-    print("\n=== Detailed Calibration Plot (First Athlete) ===")
-    first_athlete = athlete_dirs[0]
-    save_path = output_dir / f"athlete_calibration_{first_athlete.name}.png"
-    plot_athlete_calibration(first_athlete, global_curve, save_path)
+        # Plot first synthetic athlete in detail
+        print("\n=== Detailed Calibration Plot (Synthetic Athlete) ===")
+        save_path = output_dir / "synthetic_athlete_calibration.png"
+        plot_athlete_calibration(
+            global_curve=global_curve,
+            pace_at_grades=synthetic_athletes[0]['pace_at_grades'],
+            flat_pace_override=synthetic_athletes[0]['flat_pace'],
+            athlete_id_override=synthetic_athletes[0]['name'],
+            save_path=save_path,
+        )
 
-    # Plot comparison of multiple athletes
-    print("\n=== Multi-Athlete Comparison ===")
-    save_path = output_dir / "athletes_comparison.png"
-    plot_multiple_athletes_comparison(
-        processed_root,
-        global_curve,
-        num_athletes=min(6, len(athlete_dirs)),
-        save_path=save_path,
-    )
+        # Plot comparison of synthetic athletes
+        print("\n=== Multi-Athlete Comparison (Synthetic) ===")
+        save_path = output_dir / "synthetic_athletes_comparison.png"
+        plot_multiple_athletes_comparison(
+            global_curve=global_curve,
+            synthetic_athletes=synthetic_athletes,
+            save_path=save_path,
+        )
+
+    else:
+        # Option 2: Use real athletes
+        print("\n=== Using Real Athletes ===")
+
+        # Find athlete directories
+        athlete_dirs = [
+            p for p in processed_root.iterdir()
+            if p.is_dir() and p.name.isdigit()
+        ]
+
+        if not athlete_dirs:
+            print(f"No athlete directories found in {processed_root}")
+            return
+
+        print(f"Found {len(athlete_dirs)} athletes")
+
+        # Plot first athlete in detail
+        print("\n=== Detailed Calibration Plot (First Athlete) ===")
+        first_athlete = athlete_dirs[1]
+        save_path = output_dir / f"athlete_calibration_{first_athlete.name}.png"
+        plot_athlete_calibration(
+            athlete_dir=first_athlete,
+            global_curve=global_curve,
+            save_path=save_path,
+        )
+
+        # Plot comparison of multiple athletes
+        print("\n=== Multi-Athlete Comparison ===")
+        save_path = output_dir / "athletes_comparison.png"
+        plot_multiple_athletes_comparison(
+            processed_root=processed_root,
+            global_curve=global_curve,
+            num_athletes=min(6, len(athlete_dirs)),
+            save_path=save_path,
+        )
 
     print(f"\nAll plots saved to {output_dir}/")
     print("\nInterpretation:")
@@ -363,6 +492,8 @@ def main():
     print("- Personalized curves: Fitted to individual athlete's anchor points")
     print("- Variance shows different athlete capabilities at different grades")
     print("- Steeper curves = more affected by grade changes")
+    if USE_SYNTHETIC:
+        print("\nTo use real athlete data, set USE_SYNTHETIC = False in main()")
 
 
 if __name__ == "__main__":

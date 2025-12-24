@@ -1,5 +1,20 @@
 <template>
-  <div class="map-container" ref="mapContainer"></div>
+  <div class="map-container" ref="mapContainer">
+    <div class="layer-switcher">
+      <button
+        :class="{ active: currentLayer === 'topo' }"
+        @click="switchToTopo"
+        title="OpenTopoMap - Shows contour lines">
+        Topo
+      </button>
+      <button
+        :class="{ active: currentLayer === 'osm' }"
+        @click="switchToOSM"
+        title="OpenStreetMap - Detailed view">
+        Street
+      </button>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -20,23 +35,48 @@ const props = defineProps({
   selectedRange: {
     type: Object,
     default: null
+  },
+  predictionSegments: {
+    type: Array,
+    default: null
+  },
+  flatPace: {
+    type: Number,
+    default: null
   }
 })
 
 const mapContainer = ref(null)
 const mapStore = useMapStore()
+const currentLayer = ref('topo')
 
 let map = null
-let routeLayer = null
+let routeLayer = L.layerGroup() // Changed to LayerGroup to hold multiple segments
 let hoverMarker = null
 let selectionLayer = null
+let topoLayer = null
+let osmLayer = null
 
 const initMap = () => {
   map = L.map(mapContainer.value).setView([mapStore.center.lat, mapStore.center.lon], mapStore.zoom)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map)
+  // OpenTopoMap layer (with contour lines, native tiles up to zoom 15)
+  topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+    maxNativeZoom: 15,
+    maxZoom: 19
+  })
+
+  // Standard OSM layer (no contours, zoom 0-19)
+  osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  })
+
+  // Start with topo layer
+  topoLayer.addTo(map)
+
+  routeLayer.addTo(map)
 
   map.on('zoomend', () => {
     mapStore.updateZoom(map.getZoom())
@@ -48,22 +88,69 @@ const initMap = () => {
   })
 }
 
+const getPaceColor = (pace, flatPace) => {
+  if (!flatPace) return 'blue'
+  const ratio = pace / flatPace
+  
+  if (ratio < 0.9) return '#22c55e' // Green (Fast/Downhill)
+  if (ratio < 1.1) return '#3b82f6' // Blue (Flat/Normal)
+  if (ratio < 1.4) return '#eab308' // Yellow (Moderate Climb)
+  return '#ef4444' // Red (Steep Climb)
+}
+
 const drawRoute = (points) => {
   if (!map) return
 
-  if (routeLayer) {
-    map.removeLayer(routeLayer)
+  routeLayer.clearLayers()
+
+  if (props.predictionSegments && props.flatPace) {
+    // Draw colored segments
+    let currentIndex = 0
+    
+    props.predictionSegments.forEach(seg => {
+      const endDist = seg.end_km * 1000
+      
+      // Find end index for this segment
+      let endIndex = currentIndex
+      while (endIndex < points.length && points[endIndex].distance <= endDist) {
+        endIndex++
+      }
+      // Include one extra point to connect segments
+      const segmentPoints = points.slice(currentIndex, Math.min(endIndex + 1, points.length))
+      
+      if (segmentPoints.length > 1) {
+        const latLngs = segmentPoints.map(p => [p.lat, p.lon])
+        const color = getPaceColor(seg.avg_pace_min_per_km, props.flatPace)
+        
+        L.polyline(latLngs, {
+          color: color,
+          weight: 4,
+          opacity: 0.8
+        }).bindPopup(`
+          <b>Segment Info</b><br>
+          Grade: ${seg.avg_grade_percent.toFixed(1)}%<br>
+          Pace: ${seg.avg_pace_min_per_km.toFixed(2)} min/km<br>
+          Time: ${seg.time_formatted}
+        `).addTo(routeLayer)
+      }
+      
+      currentIndex = endIndex
+    })
+  } else {
+    // Default blue line
+    const latLngs = points.map(p => [p.lat, p.lon])
+    L.polyline(latLngs, {
+      color: 'blue',
+      weight: 3,
+      opacity: 0.7
+    }).addTo(routeLayer)
   }
 
+  // Fit bounds
   const latLngs = points.map(p => [p.lat, p.lon])
-
-  routeLayer = L.polyline(latLngs, {
-    color: 'blue',
-    weight: 3,
-    opacity: 0.7
-  }).addTo(map)
-
-  map.fitBounds(routeLayer.getBounds())
+  if (latLngs.length > 0) {
+    map.fitBounds(L.polyline(latLngs).getBounds())
+  }
 }
 
 const updateHoverMarker = (index) => {
@@ -82,6 +169,29 @@ const updateHoverMarker = (index) => {
       weight: 2
     }).addTo(map)
   }
+}
+
+const switchToTopo = () => {
+  if (!map) return
+  if (map.hasLayer(osmLayer)) {
+    map.removeLayer(osmLayer)
+  }
+  if (!map.hasLayer(topoLayer)) {
+    topoLayer.addTo(map)
+    topoLayer.redraw()
+  }
+  currentLayer.value = 'topo'
+}
+
+const switchToOSM = () => {
+  if (!map) return
+  if (map.hasLayer(topoLayer)) {
+    map.removeLayer(topoLayer)
+  }
+  if (!map.hasLayer(osmLayer)) {
+    osmLayer.addTo(map)
+  }
+  currentLayer.value = 'osm'
 }
 
 const updateSelection = (range) => {
@@ -130,5 +240,42 @@ watch(() => props.selectedRange, (range) => {
   height: 100%;
   border-radius: 8px;
   overflow: hidden;
+  position: relative;
+}
+
+.layer-switcher {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 1000;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  display: flex;
+  overflow: hidden;
+}
+
+.layer-switcher button {
+  padding: 6px 12px;
+  border: none;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.layer-switcher button:hover {
+  background: #f0f0f0;
+}
+
+.layer-switcher button.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.layer-switcher button:not(:last-child) {
+  border-right: 1px solid #e0e0e0;
 }
 </style>

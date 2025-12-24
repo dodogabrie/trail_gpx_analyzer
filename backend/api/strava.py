@@ -8,6 +8,7 @@ from database import db
 from api.auth import verify_jwt
 from services.strava_service import StravaService
 from datetime import datetime
+from cryptography.fernet import InvalidToken
 
 bp = Blueprint('strava', __name__, url_prefix='/api/strava')
 
@@ -70,6 +71,8 @@ def get_activities():
             'total': len(activities)
         })
 
+    except InvalidToken:
+        return jsonify({'error': 'Strava tokens are invalid (cannot decrypt). Please reconnect Strava.'}), 401
     except Exception as e:
         current_app.logger.error(f"Fetch activities error: {str(e)}")
         return jsonify({'error': 'Failed to fetch activities'}), 500
@@ -123,6 +126,8 @@ def match_activities():
             'target_distance': target_distance
         })
 
+    except InvalidToken:
+        return jsonify({'error': 'Strava tokens are invalid (cannot decrypt). Please reconnect Strava.'}), 401
     except Exception as e:
         current_app.logger.error(f"Match activities error: {str(e)}")
         return jsonify({'error': 'Failed to match activities'}), 500
@@ -189,6 +194,8 @@ def download_activity_streams(activity_id):
             'activity': strava_activity.to_dict()
         })
 
+    except InvalidToken:
+        return jsonify({'error': 'Strava tokens are invalid (cannot decrypt). Please reconnect Strava.'}), 401
     except Exception as e:
         current_app.logger.error(f"Download streams error: {str(e)}")
         return jsonify({'error': 'Failed to download streams'}), 500

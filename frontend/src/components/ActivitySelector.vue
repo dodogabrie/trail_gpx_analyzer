@@ -80,9 +80,8 @@ const selectActivity = async (activity) => {
   console.log('📍 GPX ID:', props.gpxId)
 
   try {
-    // Pass gpxId so calibration can auto-trigger prediction
     await predictionStore.calibrateFromActivity(activity.strava_id, props.gpxId)
-    console.log('✅ Calibration and prediction flow completed')
+    console.log('✅ Calibration completed')
     emit('activity-selected', activity)
   } catch (error) {
     console.error('❌ Failed to calibrate:', error)

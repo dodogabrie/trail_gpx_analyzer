@@ -36,7 +36,8 @@ class StravaService:
                 'client_id': self.client_id,
                 'client_secret': self.client_secret,
                 'code': code,
-                'grant_type': 'authorization_code'
+                'grant_type': 'authorization_code',
+                'redirect_uri': self.redirect_uri
             }
         )
         response.raise_for_status()
@@ -83,11 +84,20 @@ class StravaService:
             if after_timestamp:
                 params['after'] = after_timestamp
             
+            
+            full_url = f'{self.API_URL}/athlete/activities'
+            print(f"DEBUG: StravaService fetching from URL: {full_url} with params: {params} and headers: {headers}")
+
             response = requests.get(
-                f'{self.API_URL}/athlete/activities',
+                full_url,
                 headers=headers,
                 params=params
             )
+            
+            # Log response details if not successful
+            if not response.ok:
+                print(f"DEBUG: StravaService fetch_activities error. Status: {response.status_code}, Response: {response.text}")
+
             response.raise_for_status()
             data = response.json()
             

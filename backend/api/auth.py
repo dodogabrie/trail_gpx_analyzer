@@ -1,5 +1,6 @@
 import sys
 import os
+import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Blueprint, request, jsonify, redirect, current_app
@@ -88,6 +89,9 @@ def handle_callback():
         # Redirect to frontend with token
         return redirect(f"{current_app.config['CORS_ORIGINS'][0]}/auth-success?token={jwt_token}")
 
+    except requests.exceptions.HTTPError as e:
+        current_app.logger.error(f"Strava API error: {e.response.text}")
+        return redirect(f"{current_app.config['CORS_ORIGINS'][0]}/auth-error?error=exchange_failed")
     except Exception as e:
         current_app.logger.error(f"OAuth callback error: {str(e)}")
         return redirect(f"{current_app.config['CORS_ORIGINS'][0]}/auth-error?error=exchange_failed")
