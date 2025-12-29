@@ -7,6 +7,7 @@ from models import User, StravaActivity, GPXFile
 from database import db
 from api.auth import verify_jwt
 from services.strava_service import StravaService
+from services.user_residual_service import UserResidualService
 from datetime import datetime
 from cryptography.fernet import InvalidToken
 
@@ -188,6 +189,24 @@ def download_activity_streams(activity_id):
         # Update streams
         strava_activity.streams = streams
         db.session.commit()
+
+        # Collect residuals for hybrid prediction training
+        try:
+            residual_service = UserResidualService()
+            residual_service.collect_residuals_from_activity(
+                user_id=user.id,
+                activity_id=str(activity_id),
+                activity_streams=streams,
+                activity_metadata={
+                    'start_date': activity_data.get('start_date'),
+                    'type': activity_data.get('type', 'Run'),
+                    'distance': activity_data.get('distance'),
+                }
+            )
+            print(f"[STRAVA] Residuals collected for activity {activity_id}")
+        except Exception as e:
+            # Don't fail request if residual collection fails
+            print(f"[STRAVA] Failed to collect residuals: {e}")
 
         return jsonify({
             'message': 'Streams downloaded successfully',

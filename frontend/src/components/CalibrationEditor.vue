@@ -258,6 +258,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { RadarChart } from 'echarts/charts'
 import { RadarComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import api from '../services/api'
 
 use([CanvasRenderer, RadarChart, RadarComponent, TooltipComponent, LegendComponent])
 
@@ -380,12 +381,11 @@ const anchorSampleCounts = computed(() => props.diagnostics?.anchor_sample_count
 const fetchPerformanceSnapshots = async () => {
   loadingSnapshots.value = true
   try {
-    const response = await fetch('http://localhost:5000/api/performance/snapshots?period_type=weekly&limit=8')
-    if (response.ok) {
-      const data = await response.json()
-      performanceSnapshots.value = data.snapshots || []
-      console.log('Loaded', performanceSnapshots.value.length, 'performance snapshots')
-    }
+    const response = await api.get('/performance/snapshots', {
+      params: { period_type: 'weekly', limit: 8 }
+    })
+    performanceSnapshots.value = response.data.snapshots || []
+    console.log('Loaded', performanceSnapshots.value.length, 'performance snapshots')
   } catch (error) {
     console.error('Failed to fetch performance snapshots:', error)
   } finally {

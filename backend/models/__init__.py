@@ -6,6 +6,9 @@ from .prediction import Prediction
 from .performance_snapshot import PerformanceSnapshot
 from .grade_performance_history import GradePerformanceHistory
 from .user_achievement import UserAchievement
+from .user_activity_residual import UserActivityResidual
+from .user_learned_params import UserLearnedParams
+from .user_residual_model import UserResidualModel
 
 __all__ = [
     'User',
@@ -15,5 +18,8 @@ __all__ = [
     'Prediction',
     'PerformanceSnapshot',
     'GradePerformanceHistory',
-    'UserAchievement'
+    'UserAchievement',
+    'UserActivityResidual',
+    'UserLearnedParams',
+    'UserResidualModel'
 ]

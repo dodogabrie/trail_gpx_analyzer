@@ -18,6 +18,7 @@ export const usePredictionStore = defineStore('prediction', {
     // Prediction
     prediction: null,
     similarActivities: [],
+    splitLevel: 3, // 1-5: 1=minimal detail, 5=max detail
 
     // UI state
     loading: false,
@@ -56,13 +57,13 @@ export const usePredictionStore = defineStore('prediction', {
     },
 
     async calibrateFromActivity(activityId, gpxId) {
-      console.log('🔧 calibrateFromActivity called', { activityId, gpxId })
+      console.log('🔧 calibrateFromActivity called (PHYSICS MODEL)', { activityId, gpxId })
       this.loading = true
       this.error = null
       this.currentStep = 'calibrating'
 
       try {
-        const response = await api.post('/prediction/calibrate', {
+        const response = await api.post('/physics/calibrate', {
           activity_id: activityId
         })
 
@@ -150,7 +151,7 @@ export const usePredictionStore = defineStore('prediction', {
 
         console.log(`   Sending ${cachedActivities.length} cached activities to avoid re-fetch`)
 
-        const response = await api.post('/prediction/predict', {
+        const response = await api.post('/physics/predict', {
           gpx_id: gpxId,
           flat_pace_min_per_km: flatPace,
           anchor_ratios: this.editedAnchorRatios,

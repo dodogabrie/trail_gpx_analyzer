@@ -1,59 +1,72 @@
 <template>
-  <div class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
-    <TransitionGroup name="achievement">
+  <!-- Compact notification badge -->
+  <div v-if="unreadCount > 0" class="fixed top-4 right-4 z-50">
+    <button
+      @click="showPanel = !showPanel"
+      class="relative bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-full shadow-lg transition-all flex items-center gap-2 font-semibold"
+    >
+      <span class="text-xl">🏆</span>
+      <span>{{ unreadCount }} new achievement{{ unreadCount > 1 ? 's' : '' }}</span>
+    </button>
+
+    <!-- Expandable panel -->
+    <Transition name="slide-down">
       <div
-        v-for="achievement in visibleAchievements"
-        :key="achievement.id"
-        class="bg-white border-2 border-yellow-400 rounded-lg shadow-lg p-4 transform hover:scale-105 transition-all duration-300"
-        @click="markAsRead(achievement.id)"
+        v-if="showPanel"
+        class="absolute top-14 right-0 w-96 max-h-[500px] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200"
       >
-        <div class="flex items-start gap-3">
-          <div class="text-4xl">{{ achievement.icon }} {{ achievement.category_icon }}</div>
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <h3 class="font-bold text-gray-900">{{ achievement.name }}</h3>
-              <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">NEW</span>
-            </div>
-            <p class="text-sm text-gray-600 mt-1">{{ achievement.description }}</p>
-            <p class="text-xs text-gray-400 mt-2">{{ formatDate(achievement.earned_at) }}</p>
-          </div>
+        <div class="sticky top-0 bg-gradient-to-r from-yellow-400 to-yellow-500 p-4 flex items-center justify-between">
+          <h3 class="font-bold text-yellow-900">New Achievements</h3>
           <button
-            class="text-gray-400 hover:text-gray-600 text-xs"
-            @click.stop="dismiss(achievement.id)"
+            @click="markAllAsRead"
+            class="text-xs text-yellow-900 hover:text-yellow-800 underline"
           >
-            ✕
+            Mark all read
           </button>
         </div>
+
+        <div class="p-2 space-y-2">
+          <div
+            v-for="achievement in visibleAchievements"
+            :key="achievement.id"
+            class="p-3 bg-yellow-50 border border-yellow-200 rounded hover:bg-yellow-100 transition-colors cursor-pointer"
+            @click="markAsRead(achievement.id)"
+          >
+            <div class="flex items-start gap-3">
+              <div class="text-3xl">{{ achievement.icon }} {{ achievement.category_icon }}</div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-gray-900 text-sm">{{ achievement.name }}</h4>
+                <p class="text-xs text-gray-600 mt-1">{{ achievement.description }}</p>
+                <p class="text-xs text-gray-400 mt-1">{{ formatDate(achievement.earned_at) }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </TransitionGroup>
+    </Transition>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import api from '../services/api'
 
 const visibleAchievements = ref([])
 const pollInterval = ref(null)
+const showPanel = ref(false)
+
+const unreadCount = computed(() => visibleAchievements.value.length)
 
 const fetchNewAchievements = async () => {
   try {
-    const response = await fetch('http://localhost:5000/api/performance/achievements?unread_only=true')
-    if (response.ok) {
-      const data = await response.json()
-      const newAchievements = data.achievements || []
+    const response = await api.get('/performance/achievements', {
+      params: { unread_only: true }
+    })
+    const data = response.data
+    const newAchievements = data.achievements || []
 
-      // Add new achievements that aren't already visible
-      for (const achievement of newAchievements) {
-        if (!visibleAchievements.value.find(a => a.id === achievement.id)) {
-          visibleAchievements.value.push(achievement)
-
-          // Auto-dismiss after 10 seconds
-          setTimeout(() => {
-            dismiss(achievement.id)
-          }, 10000)
-        }
-      }
-    }
+    // Update achievements list
+    visibleAchievements.value = newAchievements
   } catch (error) {
     console.error('Failed to fetch achievements:', error)
   }
@@ -61,20 +74,26 @@ const fetchNewAchievements = async () => {
 
 const markAsRead = async (achievementId) => {
   try {
-    await fetch(`http://localhost:5000/api/performance/achievements/${achievementId}/mark-read`, {
-      method: 'POST'
-    })
-    dismiss(achievementId)
+    await api.post(`/performance/achievements/${achievementId}/mark-read`)
+    const index = visibleAchievements.value.findIndex(a => a.id === achievementId)
+    if (index !== -1) {
+      visibleAchievements.value.splice(index, 1)
+    }
   } catch (error) {
     console.error('Failed to mark achievement as read:', error)
   }
 }
 
-const dismiss = (achievementId) => {
-  const index = visibleAchievements.value.findIndex(a => a.id === achievementId)
-  if (index !== -1) {
-    visibleAchievements.value.splice(index, 1)
+const markAllAsRead = async () => {
+  for (const achievement of visibleAchievements.value) {
+    try {
+      await api.post(`/performance/achievements/${achievement.id}/mark-read`)
+    } catch (error) {
+      console.error('Failed to mark achievement as read:', error)
+    }
   }
+  visibleAchievements.value = []
+  showPanel.value = false
 }
 
 const formatDate = (dateStr) => {
@@ -90,15 +109,12 @@ const formatDate = (dateStr) => {
 }
 
 onMounted(() => {
-  // Check immediately
   fetchNewAchievements()
-
-  // Poll every 30 seconds for new achievements
-  pollInterval.value = setInterval(fetchNewAchievements, 30000)
+  // Poll every 60 seconds (less frequent)
+  pollInterval.value = setInterval(fetchNewAchievements, 60000)
 })
 
-// Cleanup on unmount
-import { onUnmounted } from 'vue'
+import { onUnmounted, computed } from 'vue'
 onUnmounted(() => {
   if (pollInterval.value) {
     clearInterval(pollInterval.value)
@@ -107,33 +123,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.achievement-enter-active {
-  animation: slide-in-right 0.5s ease-out;
+.slide-down-enter-active {
+  animation: slide-down 0.3s ease-out;
 }
 
-.achievement-leave-active {
-  animation: slide-out-right 0.3s ease-in;
+.slide-down-leave-active {
+  animation: slide-down 0.2s ease-in reverse;
 }
 
-@keyframes slide-in-right {
+@keyframes slide-down {
   from {
-    transform: translateX(100%) scale(0.8);
+    transform: translateY(-10px);
     opacity: 0;
   }
   to {
-    transform: translateX(0) scale(1);
+    transform: translateY(0);
     opacity: 1;
-  }
-}
-
-@keyframes slide-out-right {
-  from {
-    transform: translateX(0) scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(100%) scale(0.8);
-    opacity: 0;
   }
 }
 </style>

@@ -62,6 +62,9 @@ class User(db.Model):
     calibration_updated_at = db.Column(db.DateTime, nullable=True)
     calibration_activity_id = db.Column(db.Integer, nullable=True)
 
+    # Physics model parameters
+    physics_params = db.Column(db.JSON, nullable=True)
+
     # Relationships
     gpx_files = db.relationship('GPXFile', backref='user', lazy=True, cascade='all, delete-orphan')
     strava_activities = db.relationship('StravaActivity', backref='user', lazy=True, cascade='all, delete-orphan')

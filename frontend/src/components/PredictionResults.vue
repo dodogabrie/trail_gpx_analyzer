@@ -76,11 +76,31 @@
 
     <!-- Elevation & Pace Profile -->
     <div class="bg-white p-6 rounded-lg shadow">
-      <h3 class="text-xl font-bold mb-4">Elevation & Pace Profile</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold">Elevation & Pace Profile</h3>
+
+        <!-- Split Level Control -->
+        <div class="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border">
+          <span class="text-sm text-gray-600 font-medium">Detail:</span>
+          <span class="text-sm text-gray-500">Less</span>
+          <input
+            v-model.number="localSplitLevel"
+            @input="regroupSegments"
+            type="range"
+            min="1"
+            max="5"
+            step="1"
+            class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+          />
+          <span class="text-sm text-gray-500">More</span>
+          <span class="text-lg font-bold text-blue-600">{{ localSplitLevel }}</span>
+        </div>
+      </div>
+
       <ElevationPaceProfile
         v-if="gpxStore.points.length"
         :points="gpxStore.points"
-        :segments="prediction.segments"
+        :segments="displaySegments"
         :average-pace="prediction.statistics.flat_pace_min_per_km"
       />
       <div v-else class="flex items-center justify-center h-[500px] text-gray-500">
@@ -117,7 +137,7 @@
           </thead>
           <tbody>
             <tr
-              v-for="segment in prediction.segments"
+              v-for="segment in displaySegments"
               :key="segment.split_number || segment.segment_km"
               class="border-b hover:bg-gray-50"
             >
@@ -182,13 +202,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useGpxStore } from '../stores/gpx'
+import { usePredictionStore } from '../stores/prediction'
 import MapView from './MapView.vue'
 import ElevationPaceProfile from './ElevationPaceProfile.vue'
 import api from '../services/api'
 
 const gpxStore = useGpxStore()
+const predictionStore = usePredictionStore()
 
 const props = defineProps({
   prediction: {
@@ -208,6 +230,130 @@ const props = defineProps({
 const emit = defineEmits(['recalibrate'])
 
 const showSegments = ref(false)
+const localSplitLevel = ref(predictionStore.splitLevel)
+const displaySegments = ref([])
+
+// Group segments by gradient changes
+const groupSegmentsByGradient = (segments, gradientThreshold, maxSegmentLength, signChangeMinGrade) => {
+  if (!segments || segments.length === 0) return []
+
+  const grouped = []
+  let currentGroup = [segments[0]]
+  let currentStart = segments[0].distance_m
+
+  for (let i = 1; i < segments.length; i++) {
+    const prev = segments[i - 1]
+    const curr = segments[i]
+
+    const prevGrade = prev.grade * 100
+    const currGrade = curr.grade * 100
+
+    const gradeChange = Math.abs(currGrade - prevGrade)
+    const signChange = (prevGrade * currGrade < 0) &&
+                       (Math.abs(prevGrade) > signChangeMinGrade || Math.abs(currGrade) > signChangeMinGrade)
+    const currentLength = curr.distance_m - currentStart
+
+    // Different sensitivity for uphill vs downhill
+    let effectiveThreshold = gradientThreshold
+
+    // If both segments are uphill, be less sensitive (higher threshold)
+    if (prevGrade > 0 && currGrade > 0) {
+      effectiveThreshold = gradientThreshold * 1.2
+    }
+    // If both segments are downhill, be more sensitive (lower threshold)
+    else if (prevGrade < -1 && currGrade < -1) {
+      effectiveThreshold = gradientThreshold * 0.8
+    }
+
+    if (gradeChange > effectiveThreshold || signChange || currentLength > maxSegmentLength) {
+      grouped.push(currentGroup)
+      currentGroup = [curr]
+      currentStart = curr.distance_m
+    } else {
+      currentGroup.push(curr)
+    }
+  }
+
+  if (currentGroup.length > 0) {
+    grouped.push(currentGroup)
+  }
+
+  return grouped
+}
+
+// Format grouped segments for display
+const formatGroupedSegments = (segmentGroups) => {
+  const mlSegments = []
+  let cumulativeTime = 0
+
+  segmentGroups.forEach((group, index) => {
+    const groupTime = group.reduce((sum, s) => sum + s.time_s, 0)
+    const groupDist = group.reduce((sum, s) => sum + s.length_m, 0)
+    const avgGrade = group.reduce((sum, s) => sum + s.grade, 0) / group.length
+    const avgPace = groupTime / (groupDist / 1000) / 60
+
+    cumulativeTime += groupTime
+    const startKm = group[0].distance_m / 1000
+    const endKm = (group[group.length - 1].distance_m + group[group.length - 1].length_m) / 1000
+
+    const hours = Math.floor(cumulativeTime / 3600)
+    const mins = Math.floor((cumulativeTime % 3600) / 60)
+    const secs = Math.floor(cumulativeTime % 60)
+
+    let terrain
+    if (avgGrade > 0.08) terrain = "Steep Climb"
+    else if (avgGrade > 0.03) terrain = "Climb"
+    else if (avgGrade > -0.03) terrain = "Flat"
+    else if (avgGrade > -0.08) terrain = "Descent"
+    else terrain = "Steep Descent"
+
+    mlSegments.push({
+      split_number: index + 1,
+      segment_km: Math.floor(endKm),
+      start_km: parseFloat(startKm.toFixed(2)),
+      end_km: parseFloat(endKm.toFixed(2)),
+      avg_grade_percent: parseFloat((avgGrade * 100).toFixed(1)),
+      avg_pace_min_per_km: parseFloat(avgPace.toFixed(2)),
+      time_formatted: `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`,
+      terrain: terrain,
+      distance_m: parseFloat(groupDist.toFixed(1))
+    })
+  })
+
+  return mlSegments
+}
+
+// Regroup segments based on split level
+const regroupSegments = () => {
+  const rawSegments = props.prediction.raw_segments
+  if (!rawSegments || rawSegments.length === 0) {
+    displaySegments.value = props.prediction.segments
+    return
+  }
+
+  // Scale: 1=very coarse (less detail), 5=very fine (max detail)
+  const thresholds = {
+    1: { gradient: 20.0, signChange: 20.0, maxLength: 20000 }, // Very coarse (minimal segments)
+    2: { gradient: 12.0, signChange: 12.0, maxLength: 15000 }, // Coarse
+    3: { gradient: 6.0, signChange: 6.0, maxLength: 10000 },   // Medium
+    4: { gradient: 3.0, signChange: 3.0, maxLength: 6000 },    // Fine
+    5: { gradient: 1.0, signChange: 1.0, maxLength: 3000 }     // Very fine (max detail)
+  }
+
+  const config = thresholds[localSplitLevel.value] || thresholds[3]
+  const segmentGroups = groupSegmentsByGradient(
+    rawSegments,
+    config.gradient,
+    config.maxLength,
+    config.signChange
+  )
+
+  displaySegments.value = formatGroupedSegments(segmentGroups)
+}
+
+onMounted(() => {
+  regroupSegments()
+})
 
 const getGradeColor = (grade) => {
   if (grade > 5) return 'text-red-600 font-semibold'
@@ -269,8 +415,8 @@ Statistics:
 - Elevation Gain: ${Math.round(props.prediction.statistics.total_elevation_gain_m)} m
 - Flat Pace: ${props.prediction.statistics.flat_pace_min_per_km.toFixed(2)} min/km
 
-Segment Breakdown:
-${props.prediction.segments.map(s =>
+Segment Breakdown (Detail Level ${localSplitLevel.value}):
+${displaySegments.value.map(s =>
   `Km ${s.segment_km || (s.start_km + '-' + s.end_km)}: ${s.time_formatted} (${s.avg_grade_percent.toFixed(1)}% grade, ${s.avg_pace_min_per_km.toFixed(2)} min/km)`
 ).join('\n')}
   `.trim()

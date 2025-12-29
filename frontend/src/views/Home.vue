@@ -112,21 +112,34 @@
           </div>
         </div>
 
-        <div v-if="authStore.isAuthenticated" class="flex gap-3">
-          <button
-            @click="refreshPerformanceData"
-            :disabled="refreshing"
-            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ refreshing ? 'Refreshing...' : 'Refresh Performance Data' }}
-          </button>
-          <button
-            v-if="performanceStats && performanceStats.total_snapshots > 0"
-            @click="$router.push('/performance')"
-            class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            View Dashboard
-          </button>
+        <div v-if="authStore.isAuthenticated" class="space-y-3">
+          <div class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="forceRecalculate"
+              v-model="forceRecalculate"
+              class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <label for="forceRecalculate" class="text-sm text-gray-700">
+              Force recalculate (regenerate all snapshots with latest fatigue model)
+            </label>
+          </div>
+          <div class="flex gap-3">
+            <button
+              @click="refreshPerformanceData"
+              :disabled="refreshing"
+              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ refreshing ? 'Refreshing...' : 'Refresh Performance Data' }}
+            </button>
+            <button
+              v-if="performanceStats && performanceStats.total_snapshots > 0"
+              @click="$router.push('/performance')"
+              class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            >
+              View Dashboard
+            </button>
+          </div>
         </div>
 
         <div v-if="refreshMessage" :class="[
@@ -159,19 +172,29 @@ const uploading = ref(false)
 const performanceStats = ref(null)
 const refreshing = ref(false)
 const refreshMessage = ref(null)
+const forceRecalculate = ref(false)
 
 onMounted(async () => {
   await authStore.checkAuthStatus()
   await gpxStore.fetchGpxList()
-  await fetchPerformanceStats()
+
+  // Only fetch performance stats if authenticated
+  if (authStore.isAuthenticated) {
+    await fetchPerformanceStats()
+  }
 })
 
 const fetchPerformanceStats = async () => {
+  if (!authStore.isAuthenticated) {
+    return  // Skip if not authenticated
+  }
+
   try {
     const response = await api.get('/performance/stats')
     performanceStats.value = response.data
   } catch (error) {
     console.error('Failed to fetch performance stats:', error)
+    // Don't rethrow - prevents redirect loop
   }
 }
 
@@ -191,7 +214,7 @@ const refreshPerformanceData = async () => {
     const response = await api.post('/performance/refresh', {
       period_type: 'weekly',
       num_periods: 12,
-      force_recalculate: false
+      force_recalculate: forceRecalculate.value
     })
 
     refreshMessage.value = {
