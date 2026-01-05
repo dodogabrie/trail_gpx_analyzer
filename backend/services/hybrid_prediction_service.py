@@ -19,7 +19,11 @@ from config.hybrid_config import (
     get_logger,
     TIER_2_MIN_ACTIVITIES,
     TIER_3_MIN_ACTIVITIES,
-    CONFIDENCE_THRESHOLDS
+    CONFIDENCE_THRESHOLDS,
+    EFFORT_SIGMA_MULTIPLIER,
+    EFFORT_VARIANCE_CAP,
+    CI_SIGMA_MULTIPLIER,
+    CI_VARIANCE_CAP
 )
 
 logger = get_logger(__name__)
@@ -42,7 +46,8 @@ class HybridPredictionService:
         user_id: int,
         gpx_points: List[Dict],
         force_tier: Optional[str] = None,
-        include_diagnostics: bool = False
+        include_diagnostics: bool = False,
+        effort: str = 'training'
     ) -> Dict:
         """Predict route time using best available method.
 
@@ -51,6 +56,7 @@ class HybridPredictionService:
             gpx_points: Route points [{distance, elevation}, ...]
             force_tier: Force specific tier ('physics', 'parameter_learning', 'residual_ml')
             include_diagnostics: Include detailed diagnostics in response
+            effort: Effort level ('race', 'training', 'recovery') - default 'training'
 
         Returns:
             Prediction dict with metadata about method used
@@ -65,11 +71,11 @@ class HybridPredictionService:
 
         # Route to appropriate prediction method
         if tier == 'TIER_1_PHYSICS':
-            result = self._predict_tier1(user_id, gpx_points, include_diagnostics)
+            result = self._predict_tier1(user_id, gpx_points, include_diagnostics, effort)
         elif tier == 'TIER_2_PARAMETER_LEARNING':
-            result = self._predict_tier2(user_id, gpx_points, include_diagnostics)
+            result = self._predict_tier2(user_id, gpx_points, include_diagnostics, effort)
         elif tier == 'TIER_3_RESIDUAL_ML':
-            result = self._predict_tier3(user_id, gpx_points, include_diagnostics)
+            result = self._predict_tier3(user_id, gpx_points, include_diagnostics, effort)
         else:
             raise ValueError(f"Unknown tier: {tier}")
 
@@ -128,7 +134,8 @@ class HybridPredictionService:
         self,
         user_id: int,
         gpx_points: List[Dict],
-        include_diagnostics: bool
+        include_diagnostics: bool,
+        effort: str = 'training'
     ) -> Dict:
         """Tier 1: Pure physics prediction.
 
@@ -137,6 +144,7 @@ class HybridPredictionService:
         Args:
             user_id: User ID
             gpx_points: Route points
+            effort: Effort level (not used in Tier 1)
             include_diagnostics: Include diagnostics
 
         Returns:
@@ -182,7 +190,8 @@ class HybridPredictionService:
         self,
         user_id: int,
         gpx_points: List[Dict],
-        include_diagnostics: bool
+        include_diagnostics: bool,
+        effort: str = 'training'
     ) -> Dict:
         """Tier 2: Physics with learned parameters.
 
@@ -192,6 +201,7 @@ class HybridPredictionService:
             user_id: User ID
             gpx_points: Route points
             include_diagnostics: Include diagnostics
+            effort: Effort level (not used in Tier 2)
 
         Returns:
             Prediction with metadata
@@ -253,7 +263,8 @@ class HybridPredictionService:
         self,
         user_id: int,
         gpx_points: List[Dict],
-        include_diagnostics: bool
+        include_diagnostics: bool,
+        effort: str = 'training'
     ) -> Dict:
         """Tier 3: Physics + ML residual corrections.
 
@@ -263,6 +274,7 @@ class HybridPredictionService:
             user_id: User ID
             gpx_points: Route points
             include_diagnostics: Include diagnostics
+            effort: Effort level ('race', 'training', 'recovery')
 
         Returns:
             Prediction with metadata
@@ -277,7 +289,7 @@ class HybridPredictionService:
                 learned_params = trained.to_dict()
             else:
                 logger.warning(f"Tier 2 training failed for user {user_id}, falling back to Tier 2 baseline")
-                return self._predict_tier2(user_id, gpx_points, include_diagnostics)
+                return self._predict_tier2(user_id, gpx_points, include_diagnostics, effort)
 
         # Get or train GBM model
         gbm_model = self.ml_service.get_user_model(user_id)
@@ -289,7 +301,7 @@ class HybridPredictionService:
                 gbm_model = self.ml_service.get_user_model(user_id)
             else:
                 logger.warning(f"Tier 3 GBM training failed for user {user_id}, falling back to Tier 2")
-                return self._predict_tier2(user_id, gpx_points, include_diagnostics)
+                return self._predict_tier2(user_id, gpx_points, include_diagnostics, effort)
 
         # Run physics prediction with learned params (baseline)
         physics_result = self.physics_service.predict(
@@ -310,24 +322,90 @@ class HybridPredictionService:
             segments_with_features
         )
 
-        # Apply ML corrections to physics predictions
+        # Get residual variance for effort-based adjustment
+        from models import UserResidualModel
+        ml_model_record = UserResidualModel.query.filter_by(user_id=user_id).first()
+        residual_variance = ml_model_record.residual_variance if ml_model_record and ml_model_record.residual_variance else 0.0
+
+        logger.info(f"Predicting Tier 3 with effort='{effort}', residual_variance={residual_variance}")
+
+        # Determine effort adjustment
+        # Cap variance for effort adjustment to avoid unrealistic jumps (e.g. 23% faster for race)
+        effort_variance = min(residual_variance, EFFORT_VARIANCE_CAP) if residual_variance > 0 else 0.0
+
+        effort_adjustment = 0.0
+        if effort == 'race' and effort_variance > 0:
+            effort_adjustment = -effort_variance * EFFORT_SIGMA_MULTIPLIER  # Faster (optimistic)
+            logger.info(f"Applying race effort: -{EFFORT_SIGMA_MULTIPLIER}σ (capped σ={effort_variance:.4f} -> {effort_adjustment:.4f})")
+        elif effort == 'recovery' and effort_variance > 0:
+            effort_adjustment = effort_variance * EFFORT_SIGMA_MULTIPLIER  # Slower (conservative)
+            logger.info(f"Applying recovery effort: +{EFFORT_SIGMA_MULTIPLIER}σ (capped σ={effort_variance:.4f} -> {effort_adjustment:.4f})")
+        
+        logger.info(f"Final effort_adjustment: {effort_adjustment}")
+
+        # training: no adjustment
+
+        # Apply ML corrections to physics predictions and calculate CI
+        
+        # Setup variance parameters for CI
+        effective_variance = 0.0
+        
+        if residual_variance > 0:
+            # Cap variance - a race-ready athlete is consistent
+            effective_variance = min(residual_variance, CI_VARIANCE_CAP)
+
         corrected_segments = []
         total_time_seconds = 0
+        ci_lower_time = 0
+        ci_upper_time = 0
 
         for i, (seg, residual_mult) in enumerate(zip(physics_result['segments'], residual_multipliers)):
+            # 1. Main Prediction
+            # Apply effort adjustment to residual multiplier
+            adjusted_residual_mult = residual_mult + effort_adjustment
+            
+            # Ensure multiplier doesn't go negative or illogical (0.5x to 2.0x safety)
+            adjusted_residual_mult = max(0.5, min(2.0, adjusted_residual_mult))
+
             # Correct pace with ML prediction
-            corrected_pace = seg['pace_min_km'] * residual_mult
-            corrected_time = (seg['length_m'] / 1000) / (60 / corrected_pace) if corrected_pace > 0 else 0
+            corrected_pace = seg['pace_min_km'] * adjusted_residual_mult
+            corrected_time = (seg['length_m'] / 1000) * corrected_pace * 60 if corrected_pace > 0 else 0
+
+            # 2. Confidence Interval (relative to adjusted prediction)
+            # Lower bound (Optimistic/Faster): Subtract variance from ADJUSTED multiplier
+            lower_mult = adjusted_residual_mult - (effective_variance * CI_SIGMA_MULTIPLIER)
+            lower_mult = max(0.5, lower_mult)
+            lower_pace = seg['pace_min_km'] * lower_mult
+            lower_time = (seg['length_m'] / 1000) * lower_pace * 60 if lower_pace > 0 else 0
+            
+            # Upper bound (Pessimistic/Slower): Add variance to ADJUSTED multiplier
+            upper_mult = adjusted_residual_mult + (effective_variance * CI_SIGMA_MULTIPLIER)
+            upper_pace = seg['pace_min_km'] * upper_mult
+            upper_time = (seg['length_m'] / 1000) * upper_pace * 60 if upper_pace > 0 else 0
+
+            # Accumulate
+            total_time_seconds += corrected_time
+            ci_lower_time += lower_time
+            ci_upper_time += upper_time
 
             corrected_seg = {
                 **seg,
                 'pace_min_km': corrected_pace,
                 'time_s': corrected_time,
-                'ml_correction': residual_mult
+                'ml_correction': residual_mult,
+                'ml_correction_adjusted': adjusted_residual_mult
             }
 
             corrected_segments.append(corrected_seg)
-            total_time_seconds += corrected_time
+
+        # Fallback for CI if variance was 0
+        if residual_variance <= 0:
+            # Use physics result time as fallback base if calc failed, but total_time_seconds should be populated
+            base_time = total_time_seconds if total_time_seconds > 0 else physics_result.get('total_time_seconds', 0)
+            ci_lower_time = base_time * 0.95
+            ci_upper_time = base_time * 1.05
+
+        logger.info(f"Variance-based CI: [{ci_lower_time/60:.1f}min, {ci_upper_time/60:.1f}min] (raw_σ={residual_variance:.3f}, capped_σ={effective_variance:.3f})")
 
         # Rebuild aggregated segments for display (200m to larger groups)
         # For simplicity, use the existing segments structure
@@ -340,9 +418,10 @@ class HybridPredictionService:
         seconds = int(total_time_seconds % 60)
         physics_result['total_time_formatted'] = f"{hours}:{minutes:02d}:{seconds:02d}"
 
-        # Update confidence interval (still ±5% for now)
-        ci_lower = total_time_seconds * 0.95
-        ci_upper = total_time_seconds * 1.05
+        # Assign CI variables for response construction
+        ci_lower = ci_lower_time
+        ci_upper = ci_upper_time
+
         physics_result['confidence_interval'] = {
             'lower_seconds': ci_lower,
             'upper_seconds': ci_upper,
@@ -505,3 +584,130 @@ class HybridPredictionService:
                 return 'HIGH'
         else:
             return 'UNKNOWN'
+
+    def generate_model_comparison(self, user_id: int) -> Dict:
+        """Generate grade vs pace curves for all 3 model tiers.
+
+        Used for visualization to show how the model adapts to the user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Dict with arrays for grades and paces (min/km) for each tier
+        """
+        # Define grade range: -30% to +30% in 1% steps
+        grades_pct = np.arange(-30, 31, 1)
+        grades = grades_pct / 100.0  # Convert to fraction
+
+        # 1. Tier 1: Default Physics
+        # Import core physics functions directly for theoretical curves
+        from services.physics_model.core import predict_uphill_velocity, predict_downhill_velocity
+        from services.physics_model.calibration import DEFAULT_PARAMS
+
+        t1_paces = []
+        for g in grades:
+            if g >= 0:
+                v = predict_uphill_velocity(
+                    g,
+                    DEFAULT_PARAMS['v_flat'],
+                    DEFAULT_PARAMS['k_up'],
+                    DEFAULT_PARAMS['k_terrain_up']
+                )
+            else:
+                v = predict_downhill_velocity(
+                    g,
+                    DEFAULT_PARAMS['v_flat'],
+                    DEFAULT_PARAMS['k_tech'],
+                    DEFAULT_PARAMS['a_param'],
+                    DEFAULT_PARAMS['k_terrain_down'],
+                    DEFAULT_PARAMS['k_terrain_up'], # Need to pass this explicitly now as it's positional or ensure keyword args
+                    1.0, # fatigue
+                    DEFAULT_PARAMS['k_up'] # New k_up arg
+                )
+            # Convert m/s to min/km
+            pace = (1000 / v) / 60 if v > 0 else 0
+            t1_paces.append(round(pace, 2))
+
+        # 2. Tier 2: Learned Parameters
+        t2_paces = []
+        user_params = self.parameter_service.get_user_params(user_id)
+        
+        if user_params:
+            for g in grades:
+                if g >= 0:
+                    v = predict_uphill_velocity(
+                        g,
+                        user_params['v_flat'],
+                        user_params['k_up'],
+                        user_params['k_terrain_up']
+                    )
+                else:
+                    v = predict_downhill_velocity(
+                        g,
+                        user_params['v_flat'],
+                        user_params['k_tech'],
+                        user_params['a_param'],
+                        user_params['k_terrain_down'],
+                        user_params['k_terrain_up'],
+                        1.0, # fatigue
+                        user_params['k_up'] # New k_up arg
+                    )
+                pace = (1000 / v) / 60 if v > 0 else 0
+                t2_paces.append(round(pace, 2))
+        else:
+            t2_paces = None
+
+        # 3. Tier 3: ML Residuals (Simulated)
+        t3_paces = []
+        gbm_model = self.ml_service.get_user_model(user_id)
+
+        if gbm_model and t2_paces:
+            # Create synthetic segments for ML prediction
+            # We simulate "fresh" conditions to isolate the grade effect
+            segments = []
+            for g in grades:
+                seg = {
+                    'grade_mean': g,
+                    'grade_std': 0.0,
+                    'abs_grade': abs(g),
+                    'cum_distance_km': 5.0,  # Assume 5km into run (warmed up but not tired)
+                    'distance_remaining_km': 10.0,
+                    'prev_pace_ratio': 1.0,
+                    'grade_change': 0.0,
+                    'cum_elevation_gain_m': 100.0,
+                    'elevation_gain_rate': max(0, g * 1000), # Approx gain per km
+                    'rolling_avg_grade_500m': g
+                }
+                segments.append(seg)
+            
+            # Predict residuals
+            try:
+                # Need to use the feature builder or manual feature array?
+                # The service method expects a list of dicts but builds a DF internally.
+                # However, our dict keys match the feature names directly.
+                # Let's use the low-level predict method if possible, or build the DF.
+                # The 'predict_residual_corrections' method expects segment dicts with feature keys.
+                
+                # We need to ensure the keys match exactly what ML_FEATURE_NAMES expects.
+                # Let's rely on 'ml_service.predict_residual_corrections' which handles this.
+                residuals = self.ml_service.predict_residual_corrections(gbm_model, segments)
+                
+                # Apply residuals to Tier 2 paces
+                for base_pace, residual in zip(t2_paces, residuals):
+                    corrected_pace = base_pace * residual
+                    t3_paces.append(round(corrected_pace, 2))
+            except Exception as e:
+                logger.error(f"Error generating Tier 3 curve: {e}")
+                t3_paces = None
+        else:
+            t3_paces = None
+
+        return {
+            'grades': grades_pct.tolist(),
+            'tier1_pace': t1_paces,
+            'tier2_pace': t2_paces,
+            'tier3_pace': t3_paces,
+            'has_tier2': t2_paces is not None,
+            'has_tier3': t3_paces is not None
+        }

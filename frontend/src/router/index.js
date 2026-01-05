@@ -3,6 +3,7 @@ import Home from '../views/Home.vue'
 import Analysis from '../views/Analysis.vue'
 import Prediction from '../views/Prediction.vue'
 import Performance from '../views/Performance.vue'
+import Training from '../views/Training.vue'
 import AuthSuccess from '../views/AuthSuccess.vue'
 import AuthError from '../views/AuthError.vue'
 
@@ -28,6 +29,11 @@ const routes = [
     path: '/performance',
     name: 'Performance',
     component: Performance
+  },
+  {
+    path: '/training',
+    name: 'Training',
+    component: Training
   },
   {
     path: '/auth-success',

@@ -1024,7 +1024,7 @@ class PerformanceTracker:
                 continue
 
             df = _aligned_stream_df(streams)
-            if df.empty:
+            if df is None or df.empty:
                 continue
 
             df = prepare_stream(df)

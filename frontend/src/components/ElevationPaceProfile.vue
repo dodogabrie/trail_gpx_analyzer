@@ -15,7 +15,10 @@ import {
   GridComponent,
   LegendComponent,
   DataZoomComponent,
-  MarkAreaComponent
+  MarkAreaComponent,
+  BrushComponent,
+  MarkPointComponent,
+  MarkLineComponent
 } from 'echarts/components'
 import VChart from 'vue-echarts'
 
@@ -28,7 +31,10 @@ use([
   GridComponent,
   LegendComponent,
   DataZoomComponent,
-  MarkAreaComponent
+  MarkAreaComponent,
+  BrushComponent,
+  MarkPointComponent,
+  MarkLineComponent
 ])
 
 const props = defineProps({
@@ -43,8 +49,18 @@ const props = defineProps({
   averagePace: {
     type: Number,
     required: true
+  },
+  annotations: {
+    type: Array,
+    default: () => []
+  },
+  selectedRange: {
+    type: Object,
+    default: null
   }
 })
+
+const emit = defineEmits(['click-chart', 'range-selected'])
 
 const chartRef = ref(null)
 const hoveredSegmentIndex = ref(null)
@@ -53,6 +69,21 @@ const formatPace = (paceDecimal) => {
   const minutes = Math.floor(paceDecimal)
   const seconds = Math.round((paceDecimal - minutes) * 60)
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+const getElevationAtDistance = (distanceKm) => {
+  let closest = props.points[0]
+  let minDiff = Math.abs(props.points[0].distance / 1000 - distanceKm)
+
+  for (const point of props.points) {
+    const diff = Math.abs(point.distance / 1000 - distanceKm)
+    if (diff < minDiff) {
+      minDiff = diff
+      closest = point
+    }
+  }
+
+  return closest.elevation
 }
 
 const setupEventListeners = () => {
@@ -87,6 +118,47 @@ const setupEventListeners = () => {
 
     chart.on('globalout', () => {
       hoveredSegmentIndex.value = null
+    })
+
+    // Click event for adding annotations (anywhere on chart)
+    chart.getZr().on('click', (event) => {
+      const pointInGrid = [event.offsetX, event.offsetY]
+
+      // Try elevation grid (bottom chart)
+      const elevationGridModel = chart.getModel().getComponent('grid', 1)
+      if (elevationGridModel) {
+        const gridRect = elevationGridModel.coordinateSystem.getRect()
+
+        if (pointInGrid[0] >= gridRect.x &&
+            pointInGrid[0] <= gridRect.x + gridRect.width &&
+            pointInGrid[1] >= gridRect.y &&
+            pointInGrid[1] <= gridRect.y + gridRect.height) {
+
+          // Convert pixel to data coordinates
+          const distanceKm = chart.convertFromPixel({ gridIndex: 1 }, pointInGrid)[0]
+
+          if (distanceKm >= 0) {
+            emit('click-chart', { distanceKm })
+          }
+        }
+      }
+    })
+
+    // Brush events for range selection
+    chart.on('brushEnd', (params) => {
+      if (params.areas && params.areas.length > 0) {
+        const range = params.areas[0].coordRange
+        emit('range-selected', {
+          start_km: range[0],
+          end_km: range[1]
+        })
+      }
+    })
+
+    chart.on('brush', (params) => {
+      if (!params.areas || params.areas.length === 0) {
+        emit('range-selected', null)
+      }
     })
   }
 }
@@ -468,8 +540,49 @@ const chartOption = computed(() => {
               { offset: 1, color: 'rgba(59, 130, 246, 0.1)' }
             ]
           }
-        }
+        },
         // markArea is handled dynamically in the watcher
+        markPoint: {
+          symbol: 'pin',
+          symbolSize: 50,
+          data: props.annotations
+            .filter(a => a.type === 'aid_station')
+            .map(a => ({
+              name: a.label,
+              coord: [a.distance_km, getElevationAtDistance(a.distance_km)],
+              itemStyle: { color: '#10b981' },
+              label: {
+                formatter: '{b}',
+                position: 'top',
+                fontSize: 11,
+                color: '#000',
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                padding: [3, 6],
+                borderRadius: 3,
+                borderColor: '#10b981',
+                borderWidth: 1
+              }
+            }))
+        },
+        markLine: {
+          symbol: 'none',
+          data: props.annotations
+            .filter(a => a.type === 'generic')
+            .map(a => ({
+              name: a.label,
+              xAxis: a.distance_km,
+              lineStyle: { color: '#9333ea', type: 'dashed', width: 2 },
+              label: {
+                formatter: '{b}',
+                position: 'end',
+                fontSize: 11,
+                color: '#fff',
+                backgroundColor: '#9333ea',
+                padding: [3, 6],
+                borderRadius: 3
+              }
+            }))
+        }
       }
     ],
     dataZoom: [
@@ -482,7 +595,22 @@ const chartOption = computed(() => {
         xAxisIndex: [0, 1],
         bottom: 10
       }
-    ]
+    ],
+    brush: {
+      xAxisIndex: [0, 1],
+      brushType: 'lineX',
+      brushMode: 'single',
+      outOfBrush: {
+        colorAlpha: 0.3
+      },
+      brushStyle: {
+        borderWidth: 2,
+        color: 'rgba(59, 130, 246, 0.2)',
+        borderColor: 'rgba(59, 130, 246, 0.8)'
+      },
+      throttleType: 'debounce',
+      throttleDelay: 300
+    }
   }
 })
 

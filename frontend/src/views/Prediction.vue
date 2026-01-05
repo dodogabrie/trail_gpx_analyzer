@@ -9,6 +9,49 @@
         Predict your time for
         <strong>{{ gpxStore.currentGpx?.original_filename }}</strong>
       </p>
+
+      <!-- Effort Selector -->
+      <div class="mt-4 flex items-center gap-4">
+        <label class="text-sm font-medium text-gray-700">Effort Level:</label>
+        <div class="flex gap-2">
+          <button
+            @click="predictionStore.effort = 'race'"
+            :class="[
+              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              predictionStore.effort === 'race'
+                ? 'bg-red-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ]"
+          >
+            🏁 Race
+          </button>
+          <button
+            @click="predictionStore.effort = 'training'"
+            :class="[
+              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              predictionStore.effort === 'training'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ]"
+          >
+            🏃 Training
+          </button>
+          <button
+            @click="predictionStore.effort = 'recovery'"
+            :class="[
+              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+              predictionStore.effort === 'recovery'
+                ? 'bg-green-500 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ]"
+          >
+            🚶 Recovery
+          </button>
+        </div>
+        <span class="text-xs text-gray-500">
+          {{ getEffortDescription(predictionStore.effort) }}
+        </span>
+      </div>
     </div>
 
     <!-- Error Display -->
@@ -190,8 +233,28 @@ onMounted(async () => {
     return
   }
 
-  // Fetch calibration activities
-  await predictionStore.fetchCalibrationActivities(gpxId.value)
+  // Fetch calibration activities (only if we might need them)
+  // Check tier status first to see if we can skip calibration
+  const status = await predictionStore.fetchTierStatus()
+  const isAdvancedTier = status?.current_tier === 'TIER_2_PARAMETER_LEARNING' || status?.current_tier === 'TIER_3_RESIDUAL_ML'
+  
+  if (isAdvancedTier) {
+    console.log('🚀 Advanced tier detected (' + status.current_tier + '), skipping calibration steps...')
+    // Auto-predict
+    await predictionStore.predictRouteTime(gpxId.value)
+  } else {
+    // Fallback for Tier 1: Load calibration activities
+    await predictionStore.fetchCalibrationActivities(gpxId.value)
+  }
+})
+
+// Watch effort changes to auto-repredict
+import { watch } from 'vue'
+watch(() => predictionStore.effort, async (newEffort) => {
+  if (predictionStore.currentStep === 'results' || predictionStore.currentStep === 'predicting') {
+    console.log('Effort changed to ' + newEffort + ', re-predicting...')
+    await predictionStore.predictRouteTime(gpxId.value)
+  }
 })
 
 const onCalibrationSaved = async (editedData) => {
@@ -209,5 +272,14 @@ const onCalibrationSkipped = async () => {
 const recalibrate = () => {
   predictionStore.reset()
   predictionStore.fetchCalibrationActivities(gpxId.value)
+}
+
+const getEffortDescription = (effort) => {
+  const descriptions = {
+    race: 'Optimistic pace - push your limits',
+    training: 'Realistic pace - normal effort',
+    recovery: 'Conservative pace - easy day'
+  }
+  return descriptions[effort] || ''
 }
 </script>

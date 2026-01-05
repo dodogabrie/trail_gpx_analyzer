@@ -102,7 +102,8 @@ def run_physics_prediction(
                 a_param, 
                 k_terrain_down=k_terrain_down,
                 k_terrain_up=k_terrain_up,
-                fatigue_factor=fatigue_factor
+                fatigue_factor=fatigue_factor,
+                k_up=k_up
             )
             
             # Accumulate eccentric load (only on descents)

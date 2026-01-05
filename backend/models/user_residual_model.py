@@ -48,6 +48,10 @@ class UserResidualModel(db.Model):
     # {'n_estimators': 100, 'max_depth': 3, 'learning_rate': 0.05}
     model_config = db.Column(db.JSON)
 
+    # Residual variance (std) for effort-based predictions
+    # Used to create confidence bands: race (mean-σ), training (mean), recovery (mean+σ)
+    residual_variance = db.Column(db.Float)
+
     last_trained = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     version = db.Column(db.Integer, default=1)
 

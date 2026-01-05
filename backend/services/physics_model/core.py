@@ -149,7 +149,8 @@ def predict_downhill_velocity(
     a_param: float,
     k_terrain_down: float = 1.0,
     k_terrain_up: float = 1.0,
-    fatigue_factor: float = 1.0
+    fatigue_factor: float = 1.0,
+    k_up: float = 1.0
 ) -> float:
     """Predict running velocity in kinematic-limited regime (downhill).
 
@@ -164,14 +165,9 @@ def predict_downhill_velocity(
     1. Energy-based limit: theoretical max speed from metabolic cost (usually very high)
     2. Kinematic cap: practical limit from technique and terrain
 
-    Formula for kinematic cap:
-        v_cap = v_flat * (1 + a * |grade|) * (k_tech / fatigue) / k_terrain_down
-
-    Where:
-        - (1 + a * |grade|) = grade-to-speed multiplier (steeper = faster due to gravity)
-        - k_tech = user's downhill technique (1.0 = average, >1.0 = skilled)
-        - fatigue degrades technique (fatigued = worse control = slower for safety)
-        - k_terrain_down = trail roughness penalty on descents
+    Formula for kinematic cap (CONTINUOUS WITH UPHILL):
+        v0 = v_flat / (1.0 * k_terrain_up * k_up * fatigue)  [Anchor at g=0]
+        v_cap = v0 * (1 + a * |grade| * k_tech) / k_terrain_down
 
     Args:
         grade: Terrain gradient as fraction (typically < 0 for downhill)
@@ -181,38 +177,50 @@ def predict_downhill_velocity(
         k_terrain_down: Terrain penalty on descents (default 1.0 = smooth)
         k_terrain_up: Terrain factor for energy calc (rarely matters)
         fatigue_factor: Current fatigue state (degrades technique)
+        k_up: User's uphill efficiency (needed for continuity at g=0)
 
     Returns:
         Predicted velocity in m/s.
         Capped by whichever is LOWER: energy limit or kinematic limit.
-        (Almost always kinematic-limited in practice)
-
-    Example:
-        >>> predict_downhill_velocity(
-        ...     grade=-0.10,        # 10% downhill
-        ...     v_flat=3.5,         # 4:45 min/km on flat
-        ...     k_tech=1.05,        # 5% better downhill skill
-        ...     a_param=3.0,        # Moderate grade sensitivity
-        ...     k_terrain_down=1.12,# Trail (12% penalty on descents)
-        ...     fatigue_factor=1.08 # 8% fatigued
-        ... )
-        4.2  # Predicted: ~3:58 min/km (faster than flat, but capped by technique)
     """
     # 1. Energy-based theoretical limit (usually much higher than achievable)
-    #    Using uphill energy model with k_up=1.0 for neutral comparison
-    #    In practice, this limit rarely matters because kinematic cap dominates
-    v_energy = predict_uphill_velocity(grade, v_flat, 1.0, k_terrain_up, fatigue_factor)
+    v_energy = predict_uphill_velocity(grade, v_flat, k_up, k_terrain_up, fatigue_factor)
 
     # 2. Kinematic/Technical Limit (USUALLY THE LIMITING FACTOR)
-    #    Formula: v_cap = v_flat * grade_multiplier * technique / terrain_penalty
     abs_g = abs(grade)
 
-    # Fatigue reduces technique effectiveness (tired = worse control = must slow for safety)
+    # Fatigue reduces technique effectiveness
     effective_k_tech = k_tech / fatigue_factor
 
+    # ANCHOR: Calculate speed at g=0 using the uphill formula to ensure continuity.
+    # Uphill: v = v_flat / (Cost(0) * k_terrain_up * k_up * fatigue)
+    # Cost(0) = 1.0
+    # Note: We use k_terrain_up for the anchor because that's what defined the pace at g=0+
+    v0 = v_flat / (1.0 * k_terrain_up * k_up * fatigue_factor)
+    if v0 <= 0: v0 = 0.001
+
     # Grade multiplier: steeper descents allow faster pace (gravity assist)
-    # But terrain and technique limit how much you can capitalize on this
-    v_cap = v_flat * (1.0 + a_param * abs_g) * effective_k_tech / k_terrain_down
+    # k_tech now scales the GRAVITY ASSIST, not the base speed.
+    # This ensures that at g=0, boost=1.0, so v=v0 (continuity).
+    gravity_boost = 1.0 + (a_param * abs_g * effective_k_tech)
+
+    # BRAKING PENALTY: For steep descents (>8%), runners must brake to maintain control.
+    braking_threshold = 0.08  # 8% grade (lowered from 10%)
+    braking_intensity = 6.0   # Increased from 3.5 to 6.0 to match real-world braking on steep slopes
+
+    if abs_g > braking_threshold:
+        braking_penalty = 1.0 + (abs_g - braking_threshold) * braking_intensity
+    else:
+        braking_penalty = 1.0
+
+    # Apply boost and penalties to the anchor speed
+    # We divide by k_terrain_down/k_terrain_up ratio to account for specific downhill roughness?
+    # Actually, simpler: apply terrain penalty relative to anchor.
+    # But anchor already has k_terrain_up.
+    # If downhill terrain is rougher (1.12 vs 1.08), we should slow down.
+    terrain_adjustment = k_terrain_up / k_terrain_down
+    
+    v_cap = v0 * (gravity_boost / braking_penalty) * terrain_adjustment
 
     # Return whichever limit is LOWER (almost always v_cap in real trail running)
     return min(v_energy, v_cap)

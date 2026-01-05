@@ -11,6 +11,7 @@ from scipy.optimize import minimize
 from database import db
 from models import UserActivityResidual, UserLearnedParams
 from services.physics_prediction_service import PhysicsPredictionService
+from services.physics_model.core import predict_uphill_velocity, predict_downhill_velocity
 from config.hybrid_config import (
     get_logger,
     DEFAULT_PARAMS,
@@ -188,6 +189,10 @@ class ParameterLearningService:
             weights = []
 
             for example in training_data:
+                # Skip invalid data
+                if not example.get('actual_pace_ratio') or not example.get('grade_mean') is not None:
+                    continue
+
                 # Predict pace ratio using physics model with current params
                 physics_pace_ratio = self._compute_physics_pace_ratio(
                     grade=example['grade_mean'],
@@ -200,8 +205,12 @@ class ParameterLearningService:
                 actual_pace_ratio = example['actual_pace_ratio']
                 error = abs(actual_pace_ratio - physics_pace_ratio)
 
+                # Skip NaN/inf errors
+                if np.isnan(error) or np.isinf(error):
+                    continue
+
                 errors.append(error)
-                weights.append(example['weight'])
+                weights.append(example.get('weight', 1.0))
 
             # Weighted MAE
             weighted_errors = np.array(errors) * np.array(weights)
@@ -252,10 +261,10 @@ class ParameterLearningService:
     ) -> float:
         """Compute physics pace ratio for a given grade and parameters.
 
-        Simplified physics model: pace_ratio = f(grade, k_up, k_tech)
+        Uses authoritative core physics model to ensure training matches prediction.
 
         Args:
-            grade: Grade as fraction (e.g., 0.05 for 5%)
+            grade: Grade as fraction
             v_flat: Flat velocity (m/s)
             k_up: Uphill coefficient
             k_tech: Technical coefficient
@@ -263,23 +272,35 @@ class ParameterLearningService:
         Returns:
             Pace ratio (pace / flat_pace)
         """
-        # Simplified Minetti-based model
-        # For uphill: pace increases
-        # For downhill: pace decreases (but less than uphill gains)
+        # Use default terrain factors (not optimized per user yet)
+        k_terrain_up = DEFAULT_PARAMS['k_terrain_up']
+        k_terrain_down = DEFAULT_PARAMS['k_terrain_down']
+        a_param = DEFAULT_PARAMS['a_param']
 
-        if grade > 0:
-            # Uphill: exponential slowdown
-            pace_ratio = 1.0 + k_up * (np.exp(grade * 10) - 1) / 10
-        elif grade < 0:
-            # Downhill: logarithmic speedup (less gain than uphill loss)
-            pace_ratio = 1.0 + 0.3 * np.log1p(-grade * 10) / 10
+        if grade >= 0:
+            v_pred = predict_uphill_velocity(
+                grade,
+                v_flat,
+                k_up,
+                k_terrain=k_terrain_up
+            )
         else:
-            pace_ratio = 1.0
+            v_pred = predict_downhill_velocity(
+                grade,
+                v_flat,
+                k_tech,
+                a_param,
+                k_terrain_down=k_terrain_down,
+                k_terrain_up=k_terrain_up,
+                fatigue_factor=1.0,  # Assume fresh for base param learning
+                k_up=k_up
+            )
 
-        # Apply technical terrain factor
-        pace_ratio *= k_tech
+        if v_pred <= 0.1:
+            return 10.0  # Cap at extremely slow pace
 
-        return max(pace_ratio, 0.5)  # Floor at 0.5x (don't get too fast)
+        # Pace ratio = (1/v_pred) / (1/v_flat) = v_flat / v_pred
+        return v_flat / v_pred
 
     def _compute_score(self, training_data: List[Dict], params: Dict[str, float]) -> float:
         """Compute MAE score for given parameters.
@@ -295,6 +316,10 @@ class ParameterLearningService:
         weights = []
 
         for example in training_data:
+            # Skip invalid data
+            if not example.get('actual_pace_ratio') or example.get('grade_mean') is None:
+                continue
+
             physics_pace_ratio = self._compute_physics_pace_ratio(
                 grade=example['grade_mean'],
                 v_flat=params['v_flat'],
@@ -305,11 +330,22 @@ class ParameterLearningService:
             actual_pace_ratio = example['actual_pace_ratio']
             error = abs(actual_pace_ratio - physics_pace_ratio)
 
+            # Skip NaN/inf errors
+            if np.isnan(error) or np.isinf(error):
+                continue
+
             errors.append(error)
-            weights.append(example['weight'])
+            weights.append(example.get('weight', 1.0))
 
         weighted_errors = np.array(errors) * np.array(weights)
-        return float(np.mean(weighted_errors))
+        mae = np.mean(weighted_errors)
+
+        # Validate result
+        if np.isnan(mae) or np.isinf(mae):
+            logger.error(f"Invalid MAE computed: {mae}. Errors: {errors[:5]}, Weights: {weights[:5]}")
+            return 1.0  # Fallback to reasonable value
+
+        return float(mae)
 
     def get_user_params(self, user_id: int) -> Optional[Dict[str, float]]:
         """Get learned parameters for user.

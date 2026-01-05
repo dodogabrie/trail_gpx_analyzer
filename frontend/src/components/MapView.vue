@@ -43,6 +43,10 @@ const props = defineProps({
   flatPace: {
     type: Number,
     default: null
+  },
+  annotations: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -54,6 +58,7 @@ let map = null
 let routeLayer = L.layerGroup() // Changed to LayerGroup to hold multiple segments
 let hoverMarker = null
 let selectionLayer = null
+let annotationMarkers = null
 let topoLayer = null
 let osmLayer = null
 
@@ -77,6 +82,9 @@ const initMap = () => {
   topoLayer.addTo(map)
 
   routeLayer.addTo(map)
+
+  annotationMarkers = L.layerGroup()
+  annotationMarkers.addTo(map)
 
   map.on('zoomend', () => {
     mapStore.updateZoom(map.getZoom())
@@ -212,6 +220,42 @@ const updateSelection = (range) => {
   }
 }
 
+const updateAnnotationMarkers = (annotations) => {
+  if (!annotationMarkers) return
+
+  annotationMarkers.clearLayers()
+
+  annotations.forEach(ann => {
+    const targetDist = ann.distance_km * 1000
+    let closest = null
+    let minDiff = Infinity
+
+    for (const point of props.points) {
+      const diff = Math.abs(point.distance - targetDist)
+      if (diff < minDiff) {
+        minDiff = diff
+        closest = point
+      }
+    }
+
+    if (closest) {
+      const icon = ann.type === 'aid_station'
+        ? L.divIcon({
+            html: '<div style="background: #10b981; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">' + ann.label + '</div>',
+            className: '',
+            iconAnchor: [0, 40]
+          })
+        : L.divIcon({
+            html: '<div style="background: #9333ea; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">' + ann.label + '</div>',
+            className: '',
+            iconAnchor: [0, 40]
+          })
+
+      L.marker([closest.lat, closest.lon], { icon }).addTo(annotationMarkers)
+    }
+  })
+}
+
 onMounted(() => {
   initMap()
   if (props.points && props.points.length > 0) {
@@ -232,6 +276,10 @@ watch(() => props.hoveredIndex, (index) => {
 watch(() => props.selectedRange, (range) => {
   updateSelection(range)
 })
+
+watch(() => props.annotations, (annotations) => {
+  updateAnnotationMarkers(annotations)
+}, { deep: true, immediate: true })
 </script>
 
 <style scoped>

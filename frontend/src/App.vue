@@ -3,9 +3,23 @@
     <nav class="bg-white shadow-lg">
       <div class="max-w-7xl mx-auto px-4">
         <div class="flex justify-between h-16">
-          <div class="flex items-center">
+          <div class="flex items-center space-x-6">
             <router-link to="/" class="text-xl font-bold text-gray-800">
               GPX Analyzer
+            </router-link>
+            <router-link
+              v-if="authStore.isAuthenticated"
+              to="/training"
+              class="text-gray-700 hover:text-blue-600 font-medium"
+            >
+              AI Training
+            </router-link>
+            <router-link
+              v-if="authStore.isAuthenticated"
+              to="/performance"
+              class="text-gray-700 hover:text-blue-600 font-medium"
+            >
+              Performance
             </router-link>
           </div>
           <div class="flex items-center space-x-4">

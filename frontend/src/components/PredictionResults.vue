@@ -2,7 +2,19 @@
   <div class="space-y-6">
     <!-- Main Prediction Card -->
     <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow-lg">
-      <h3 class="text-2xl font-bold mb-4">Predicted Time</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-2xl font-bold">Predicted Time</h3>
+
+        <!-- Hybrid System Badge -->
+        <div v-if="prediction.metadata" class="flex flex-col items-end gap-1">
+          <span class="px-3 py-1 bg-white/20 rounded-full text-xs font-semibold backdrop-blur-sm">
+            {{ formatTier(prediction.metadata.tier) }}
+          </span>
+          <span class="text-xs text-blue-100">
+            {{ prediction.metadata.confidence }} confidence
+          </span>
+        </div>
+      </div>
 
       <div class="text-center">
         <div class="text-5xl font-bold mb-2">
@@ -12,6 +24,11 @@
         <div class="text-blue-100 text-sm">
           Confidence interval: {{ prediction.confidence_interval.lower_formatted }} -
           {{ prediction.confidence_interval.upper_formatted }}
+        </div>
+
+        <!-- Hybrid System Info -->
+        <div v-if="prediction.metadata" class="mt-3 text-blue-100 text-xs">
+          {{ prediction.metadata.description }}
         </div>
       </div>
 
@@ -54,6 +71,74 @@
       </button>
     </div>
 
+    <!-- Annotations Section -->
+    <div v-if="predictionStore.annotations.length > 0 || selectedRange" class="bg-white p-6 rounded-lg shadow">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold">Annotations & Selections</h3>
+        <button
+          v-if="predictionStore.annotationsDirty"
+          @click="saveAnnotationsToServer"
+          class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition flex items-center gap-2"
+        >
+          <span>💾</span> Save Annotations
+        </button>
+      </div>
+
+      <!-- Selected Range Display -->
+      <div v-if="selectedRange" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="font-semibold text-blue-900">Selected Range:</span>
+            <span class="ml-2 text-blue-700">
+              {{ selectedRange.start_km.toFixed(2) }} km - {{ selectedRange.end_km.toFixed(2) }} km
+            </span>
+            <span class="ml-2 text-blue-600">
+              ({{ (selectedRange.end_km - selectedRange.start_km).toFixed(2) }} km)
+            </span>
+          </div>
+          <div class="text-right">
+            <div class="text-sm text-blue-600">Predicted time for this segment:</div>
+            <div class="text-2xl font-bold text-blue-900">{{ selectedRangeTime }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Annotations List -->
+      <div v-if="predictionStore.annotations.length > 0" class="space-y-2">
+        <div
+          v-for="ann in predictionStore.annotations"
+          :key="ann.id"
+          class="flex items-center justify-between p-3 rounded-lg border"
+          :class="ann.type === 'aid_station' ? 'bg-green-50 border-green-200' : 'bg-purple-50 border-purple-200'"
+        >
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span v-if="ann.type === 'aid_station'" class="text-2xl">🚰</span>
+              <span v-else class="text-2xl">📍</span>
+              <div>
+                <div class="font-semibold" :class="ann.type === 'aid_station' ? 'text-green-900' : 'text-purple-900'">
+                  {{ ann.label }}
+                </div>
+                <div class="text-sm" :class="ann.type === 'aid_station' ? 'text-green-600' : 'text-purple-600'">
+                  {{ ann.distance_km.toFixed(2) }} km
+                </div>
+              </div>
+            </div>
+          </div>
+          <button
+            @click="removeAnnotation(ann.id)"
+            class="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition text-sm font-medium"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+
+      <div v-else class="text-gray-500 text-sm italic">
+        Click on the elevation profile below to add annotations (aid stations or generic markers)
+      </div>
+    </div>
+
     <!-- Map Visualization -->
     <div class="bg-white p-1 rounded-lg shadow h-[500px] border relative">
       <div class="absolute top-4 right-4 z-[1000] bg-white/90 p-2 rounded shadow text-xs space-y-1 backdrop-blur-sm">
@@ -68,6 +153,7 @@
         :points="gpxStore.points"
         :prediction-segments="prediction.segments"
         :flat-pace="prediction.statistics.flat_pace_min_per_km"
+        :annotations="predictionStore.annotations"
       />
       <div v-else class="flex items-center justify-center h-full text-gray-500">
         Loading map data...
@@ -102,6 +188,10 @@
         :points="gpxStore.points"
         :segments="displaySegments"
         :average-pace="prediction.statistics.flat_pace_min_per_km"
+        :annotations="predictionStore.annotations"
+        :selected-range="selectedRange"
+        @click-chart="handleChartClick"
+        @range-selected="handleRangeSelected"
       />
       <div v-else class="flex items-center justify-center h-[500px] text-gray-500">
         Loading profile data...
@@ -198,6 +288,15 @@
         <strong>Your flat pace:</strong> {{ formatPace(prediction.statistics.flat_pace_min_per_km) }}
       </p>
     </div>
+
+    <!-- Annotation Modal -->
+    <AnnotationModal
+      :show="showAnnotationModal"
+      :distance-km="pendingAnnotationDistance"
+      :predicted-time="pendingAnnotationPredictedTime"
+      @close="showAnnotationModal = false"
+      @save="saveAnnotation"
+    />
   </div>
 </template>
 
@@ -207,6 +306,7 @@ import { useGpxStore } from '../stores/gpx'
 import { usePredictionStore } from '../stores/prediction'
 import MapView from './MapView.vue'
 import ElevationPaceProfile from './ElevationPaceProfile.vue'
+import AnnotationModal from './AnnotationModal.vue'
 import api from '../services/api'
 
 const gpxStore = useGpxStore()
@@ -232,6 +332,11 @@ const emit = defineEmits(['recalibrate'])
 const showSegments = ref(false)
 const localSplitLevel = ref(predictionStore.splitLevel)
 const displaySegments = ref([])
+const showAnnotationModal = ref(false)
+const pendingAnnotationDistance = ref(0)
+const pendingAnnotationPredictedTime = ref(null)
+const selectedRange = ref(null)
+const selectedRangeTime = ref(null)
 
 // Group segments by gradient changes
 const groupSegmentsByGradient = (segments, gradientThreshold, maxSegmentLength, signChangeMinGrade) => {
@@ -351,8 +456,120 @@ const regroupSegments = () => {
   displaySegments.value = formatGroupedSegments(segmentGroups)
 }
 
+const handleChartClick = ({ distanceKm }) => {
+  pendingAnnotationDistance.value = distanceKm
+  pendingAnnotationPredictedTime.value = calculateTimeToDistance(distanceKm)
+  showAnnotationModal.value = true
+}
+
+const calculateTimeToDistance = (targetKm) => {
+  let totalTime = 0
+
+  for (const seg of displaySegments.value) {
+    const segStart = seg.start_km || 0
+    const segEnd = seg.end_km || seg.segment_km || 0
+
+    if (segStart >= targetKm) {
+      break
+    }
+
+    if (segEnd <= targetKm) {
+      // Entire segment is before target
+      const segDist = segEnd - segStart
+      const segTime = seg.avg_pace_min_per_km * segDist * 60
+      totalTime += segTime
+    } else {
+      // Target is inside this segment
+      const partialDist = targetKm - segStart
+      const segTime = seg.avg_pace_min_per_km * partialDist * 60
+      totalTime += segTime
+      break
+    }
+  }
+
+  const h = Math.floor(totalTime / 3600)
+  const m = Math.floor((totalTime % 3600) / 60)
+  const s = Math.floor(totalTime % 60)
+  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+const handleRangeSelected = (range) => {
+  selectedRange.value = range
+  if (range) {
+    selectedRangeTime.value = calculateRangeTime(range.start_km, range.end_km)
+  } else {
+    selectedRangeTime.value = null
+  }
+}
+
+const calculateRangeTime = (startKm, endKm) => {
+  let totalTime = 0
+
+  displaySegments.value.forEach(seg => {
+    const segStart = seg.start_km || 0
+    const segEnd = seg.end_km || seg.segment_km || 0
+
+    if (segEnd > startKm && segStart < endKm) {
+      const overlapStart = Math.max(segStart, startKm)
+      const overlapEnd = Math.min(segEnd, endKm)
+      const overlapDist = overlapEnd - overlapStart
+      const segDist = segEnd - segStart
+      const segTime = seg.avg_pace_min_per_km * segDist * 60
+      const overlapTime = (overlapDist / segDist) * segTime
+      totalTime += overlapTime
+    }
+  })
+
+  const h = Math.floor(totalTime / 3600)
+  const m = Math.floor((totalTime % 3600) / 60)
+  const s = Math.floor(totalTime % 60)
+  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+const saveAnnotation = (annotation) => {
+  const targetDist = pendingAnnotationDistance.value * 1000
+  let closest = null
+  let minDiff = Infinity
+
+  for (const point of gpxStore.points) {
+    const diff = Math.abs(point.distance - targetDist)
+    if (diff < minDiff) {
+      minDiff = diff
+      closest = point
+    }
+  }
+
+  if (closest) {
+    predictionStore.addAnnotation({
+      ...annotation,
+      lat: closest.lat,
+      lon: closest.lon
+    })
+  }
+}
+
+const removeAnnotation = (annotationId) => {
+  if (confirm('Remove this annotation?')) {
+    predictionStore.removeAnnotation(annotationId)
+  }
+}
+
+const saveAnnotationsToServer = async () => {
+  if (!props.prediction.prediction_id) return
+  try {
+    await predictionStore.saveAnnotations(props.prediction.prediction_id)
+    alert('Annotations saved successfully!')
+  } catch (error) {
+    alert('Failed to save annotations')
+  }
+}
+
 onMounted(() => {
   regroupSegments()
+
+  if (props.prediction.prediction_id) {
+    predictionStore.loadAnnotations(props.prediction.prediction_id)
+  }
 })
 
 const getGradeColor = (grade) => {
@@ -403,6 +620,15 @@ const exportVirtualPartner = async () => {
     console.error('Failed to export GPX:', error)
     alert('Failed to export Virtual Partner file')
   }
+}
+
+const formatTier = (tier) => {
+  const tierMap = {
+    'TIER_1_PHYSICS': 'Physics Baseline',
+    'TIER_2_PARAMETER_LEARNING': 'Personalized Physics',
+    'TIER_3_RESIDUAL_ML': 'ML Enhanced'
+  }
+  return tierMap[tier] || tier
 }
 
 const exportResults = () => {

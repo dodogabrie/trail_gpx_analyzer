@@ -39,7 +39,7 @@ def process_gpx_data(parsed_data):
         parsed_data['elevations'],
         parsed_data['times']
     )
-    
+
     points = []
     for idx, row in df.iterrows():
         points.append({
@@ -49,16 +49,17 @@ def process_gpx_data(parsed_data):
             'distance': row['Distance'],
             'time': row['Time']
         })
-    
+
     bounds = {
         'minLat': df['Latitude'].min(),
         'maxLat': df['Latitude'].max(),
         'minLon': df['Longitude'].min(),
         'maxLon': df['Longitude'].max()
     }
-    
+
     return {
         'points': points,
         'bounds': bounds,
-        'total_distance': df['Distance'].iloc[-1] if len(df) > 0 else 0
+        'total_distance': df['Distance'].iloc[-1] if len(df) > 0 else 0,
+        'waypoints': parsed_data.get('waypoints', [])
     }

@@ -32,6 +32,11 @@
       </div>
     </div>
 
+    <!-- Model Comparison Chart -->
+    <div class="mb-6">
+      <ModelComparisonChart />
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- Performance Trends -->
       <div class="bg-white rounded-lg shadow p-6">
@@ -209,6 +214,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import api from '../services/api'
 import FatigueCurveChart from '../components/FatigueCurveChart.vue'
+import ModelComparisonChart from '../components/ModelComparisonChart.vue'
 
 const stats = ref({})
 const achievements = ref([])

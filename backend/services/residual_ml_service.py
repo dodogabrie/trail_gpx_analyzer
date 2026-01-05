@@ -96,6 +96,10 @@ class ResidualMLService:
 
             logger.info(f"GBM training complete for user {user_id}. Validation MAE: {metrics['val_mae']:.4f}, R²: {metrics['val_r2']:.3f}")
 
+            # Compute residual variance (std) for effort-based predictions
+            residual_std = float(np.std(y))
+            logger.info(f"Residual variance (σ) for user {user_id}: {residual_std:.4f}")
+
             # Serialize model
             model_blob = self._serialize_model(model)
 
@@ -110,6 +114,7 @@ class ResidualMLService:
                 residual_model.metrics = metrics
                 residual_model.feature_importance = feature_importance
                 residual_model.model_config = GBM_CONFIG
+                residual_model.residual_variance = residual_std
                 residual_model.last_trained = datetime.utcnow()
                 residual_model.version += 1
             else:
@@ -121,7 +126,8 @@ class ResidualMLService:
                     n_segments_trained=len(X),
                     metrics=metrics,
                     feature_importance=feature_importance,
-                    model_config=GBM_CONFIG
+                    model_config=GBM_CONFIG,
+                    residual_variance=residual_std
                 )
                 db.session.add(residual_model)
 

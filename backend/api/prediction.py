@@ -763,6 +763,28 @@ def export_prediction_gpx(prediction_id):
         
         # Create new GPX
         new_gpx = gpxpy.gpx.GPX()
+
+        # Add annotations as waypoints
+        annotations = prediction.annotations or {'annotations': []}
+        for ann in annotations.get('annotations', []):
+            waypoint = gpxpy.gpx.GPXWaypoint(
+                latitude=ann['lat'],
+                longitude=ann['lon'],
+                name=ann['label']
+            )
+            waypoint.description = ann.get('description', '')
+
+            # Set symbol and type based on annotation type
+            if ann['type'] == 'aid_station':
+                waypoint.symbol = 'Water Source'
+                waypoint.type = 'Water Source'
+            else:  # generic
+                waypoint.symbol = 'Generic'
+                waypoint.type = 'Generic'
+
+            new_gpx.waypoints.append(waypoint)
+
+        # Create track
         gpx_track = gpxpy.gpx.GPXTrack()
         new_gpx.tracks.append(gpx_track)
         gpx_segment = gpxpy.gpx.GPXTrackSegment()
@@ -802,7 +824,9 @@ def export_prediction_gpx(prediction_id):
         # Re-approach: Pre-calculate cumulative time at each segment boundary
         cum_time_at_seg_start = [0.0]
         for s in segments:
-            cum_time_at_seg_start.append(cum_time_at_seg_start[-1] + s['time_seconds'])
+            # Handle both time_s and time_seconds keys
+            seg_time = s.get('time_s') or s.get('time_seconds', 0)
+            cum_time_at_seg_start.append(cum_time_at_seg_start[-1] + seg_time)
             
         # Now interpolate for each point
         seg_idx = 0
@@ -816,7 +840,7 @@ def export_prediction_gpx(prediction_id):
             seg = segments[seg_idx]
             seg_start_km = seg['start_km']
             seg_end_km = seg['end_km']
-            seg_duration = seg['time_seconds']
+            seg_duration = seg.get('time_s') or seg.get('time_seconds', 0)
             seg_start_time = cum_time_at_seg_start[seg_idx]
             
             # Interpolate within segment
@@ -1134,3 +1158,75 @@ def predict():
         traceback.print_exc()
         current_app.logger.error(f"Prediction error: {str(e)}")
         return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
+
+
+@bp.route('/<int:prediction_id>/annotations', methods=['PUT'])
+def update_annotations(prediction_id):
+    """Update annotations for a prediction.
+
+    Request body:
+        {
+            "annotations": [
+                {
+                    "id": "uuid",
+                    "type": "aid_station" | "time_target",
+                    "distance_km": 12.5,
+                    "lat": 43.95882,
+                    "lon": 10.91863,
+                    "label": "Aid Station 1",
+                    "time_target_seconds": 3661,  // optional, only for time_target
+                    "created_at": "ISO-8601"
+                }
+            ]
+        }
+
+    Returns:
+        {
+            "success": true,
+            "annotations": [...]
+        }
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    prediction = Prediction.query.filter_by(id=prediction_id, user_id=user.id).first()
+    if not prediction:
+        return jsonify({'error': 'Prediction not found'}), 404
+
+    data = request.get_json()
+    annotations = data.get('annotations', [])
+
+    # Validate structure
+    for ann in annotations:
+        required = ['id', 'type', 'distance_km', 'lat', 'lon', 'label']
+        if not all(k in ann for k in required):
+            return jsonify({'error': 'Invalid annotation structure - missing required fields'}), 400
+        if ann['type'] not in ['aid_station', 'generic']:
+            return jsonify({'error': 'Invalid annotation type'}), 400
+
+    prediction.annotations = {'annotations': annotations}
+    db.session.commit()
+
+    return jsonify({'success': True, 'annotations': annotations})
+
+
+@bp.route('/<int:prediction_id>/annotations', methods=['GET'])
+def get_annotations(prediction_id):
+    """Get annotations for a prediction.
+
+    Returns:
+        {
+            "annotations": [...]
+        }
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    prediction = Prediction.query.filter_by(id=prediction_id, user_id=user.id).first()
+    if not prediction:
+        return jsonify({'error': 'Prediction not found'}), 404
+
+    annotations = prediction.annotations or {'annotations': []}
+    return jsonify(annotations)

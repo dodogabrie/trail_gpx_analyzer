@@ -125,6 +125,23 @@ ML_FEATURE_NAMES = [
 
 
 # ============================================================================
+# EFFORT ADJUSTMENTS & CONFIDENCE INTERVALS
+# ============================================================================
+
+EFFORT_SIGMA_MULTIPLIER = 1.0
+"""Sigma multiplier for race/recovery effort adjustments"""
+
+EFFORT_VARIANCE_CAP = 0.05
+"""Maximum variance (σ) applied for effort presets (5% cap)"""
+
+CI_SIGMA_MULTIPLIER = 1.0
+"""Sigma multiplier for confidence interval width"""
+
+CI_VARIANCE_CAP = 0.06
+"""Maximum variance (σ) used for confidence intervals (6% cap)"""
+
+
+# ============================================================================
 # PHYSICS MODEL VERSIONING
 # ============================================================================
 

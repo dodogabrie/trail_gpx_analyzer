@@ -17,7 +17,8 @@ class Prediction(db.Model):
     # Results
     total_time_seconds = db.Column(db.Float, nullable=False)
     predicted_segments = db.Column(db.JSON, nullable=False) # List of segments with times
-    
+    annotations = db.Column(db.JSON, nullable=True)  # User annotations (aid stations, time targets)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -32,7 +33,8 @@ class Prediction(db.Model):
             'total_time_seconds': self.total_time_seconds,
             'total_time_formatted': self._format_time(self.total_time_seconds),
             'created_at': self.created_at.isoformat(),
-            'segments': self.predicted_segments
+            'segments': self.predicted_segments,
+            'annotations': self.annotations or {'annotations': []}
         }
         
     @staticmethod

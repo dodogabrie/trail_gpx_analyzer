@@ -362,6 +362,37 @@ def compare_periods():
     })
 
 
+from services.hybrid_prediction_service import HybridPredictionService
+
+@bp.route('/grade-model-comparison', methods=['GET'])
+def get_grade_model_comparison():
+    """Get comparison curves for all 3 model tiers.
+
+    Returns:
+        {
+            "grades": [-30, -29, ..., 30],
+            "tier1_pace": [5.2, ...],
+            "tier2_pace": [4.8, ...],
+            "tier3_pace": [4.9, ...],
+            "has_tier2": true,
+            "has_tier3": true
+        }
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        service = HybridPredictionService()
+        data = service.generate_model_comparison(user.id)
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error generating model comparison: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/achievements', methods=['GET'])
 def get_achievements():
     """Get achievements for current user.

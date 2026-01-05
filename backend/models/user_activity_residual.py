@@ -59,6 +59,9 @@ class UserActivityResidual(db.Model):
     # Recency weight (exponential decay - more recent = higher weight)
     recency_weight = db.Column(db.Float, default=1.0)
 
+    # Training inclusion (user can exclude outlier activities)
+    excluded_from_training = db.Column(db.Boolean, default=False, nullable=False)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

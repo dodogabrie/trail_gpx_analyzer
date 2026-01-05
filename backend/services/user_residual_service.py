@@ -314,6 +314,12 @@ class UserResidualService:
         if reference_date is None:
             reference_date = datetime.utcnow()
 
+        # Ensure both datetimes are naive for comparison
+        if activity_date.tzinfo is not None:
+            activity_date = activity_date.replace(tzinfo=None)
+        if reference_date.tzinfo is not None:
+            reference_date = reference_date.replace(tzinfo=None)
+
         days_ago = (reference_date - activity_date).days
         decay_rate = np.log(2) / half_life_days
         weight = np.exp(-decay_rate * days_ago)
@@ -342,7 +348,11 @@ class UserResidualService:
 
         residuals = (
             UserActivityResidual.query
-            .filter_by(user_id=user_id, physics_model_version=physics_version)
+            .filter_by(
+                user_id=user_id,
+                physics_model_version=physics_version,
+                excluded_from_training=False  # Only include non-excluded activities
+            )
             .order_by(UserActivityResidual.activity_date.desc())
             .all()
         )

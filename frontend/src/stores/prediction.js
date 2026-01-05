@@ -20,6 +20,17 @@ export const usePredictionStore = defineStore('prediction', {
     similarActivities: [],
     splitLevel: 3, // 1-5: 1=minimal detail, 5=max detail
 
+    // Hybrid system
+    tierStatus: null, // Tier status from hybrid system
+    useHybridByDefault: true, // Use hybrid prediction by default
+
+    // Effort level for predictions
+    effort: 'training', // 'race', 'training', 'recovery'
+
+    // Annotations
+    annotations: [],
+    annotationsDirty: false,
+
     // UI state
     loading: false,
     error: null,
@@ -116,24 +127,54 @@ export const usePredictionStore = defineStore('prediction', {
       }
     },
 
-    async predictRouteTime(gpxId) {
+    async predictRouteTime(gpxId, useHybrid = true) {
       console.log('🚀 predictRouteTime called with gpxId:', gpxId)
-      console.log('🔍 Current flatPace:', this.flatPace)
-      console.log('🔍 Edited flatPace:', this.editedFlatPace)
-
-      const flatPace = this.editedFlatPace || this.flatPace
-
-      if (!flatPace) {
-        console.error('❌ No flat pace - must calibrate first')
-        throw new Error('Must calibrate first')
-      }
+      console.log('🔍 Use Hybrid System:', useHybrid)
 
       this.loading = true
       this.error = null
       this.currentStep = 'predicting'
 
       try {
-        console.log('📡 Sending prediction request to backend...')
+        // NEW: Use hybrid prediction system (automatic ML-enhanced predictions)
+        if (useHybrid) {
+          console.log('📡 Sending HYBRID prediction request...')
+
+          const response = await api.post('/hybrid/predict', {
+            gpx_id: gpxId,
+            include_diagnostics: true,
+            effort: this.effort
+          }, {
+            timeout: 60000
+          })
+
+          console.log('✅ Hybrid prediction received:', response.data)
+          console.log('   Tier:', response.data.metadata.tier)
+          console.log('   Method:', response.data.metadata.method)
+          console.log('   Confidence:', response.data.metadata.confidence)
+          console.log('   Activities used:', response.data.metadata.activities_used)
+
+          // Prediction already includes metadata from backend
+          this.prediction = response.data.prediction
+          this.prediction.prediction_id = response.data.prediction_id
+          this.similarActivities = []
+          this.currentStep = 'results'
+
+          return response.data
+        }
+
+        // FALLBACK: Old physics-based prediction (manual calibration)
+        console.log('🔍 Current flatPace:', this.flatPace)
+        console.log('🔍 Edited flatPace:', this.editedFlatPace)
+
+        const flatPace = this.editedFlatPace || this.flatPace
+
+        if (!flatPace) {
+          console.error('❌ No flat pace - must calibrate first')
+          throw new Error('Must calibrate first')
+        }
+
+        console.log('📡 Sending PHYSICS prediction request...')
         console.log('   GPX ID:', gpxId)
         console.log('   Flat Pace:', flatPace, 'min/km')
         console.log('   Anchor Ratios:', this.editedAnchorRatios)
@@ -160,7 +201,7 @@ export const usePredictionStore = defineStore('prediction', {
           timeout: 60000 // 60 second timeout
         })
 
-        console.log('✅ Prediction response received:', response.data)
+        console.log('✅ Physics prediction received:', response.data)
 
         this.prediction = response.data.prediction
         this.similarActivities = response.data.similar_activities
@@ -186,6 +227,67 @@ export const usePredictionStore = defineStore('prediction', {
       }
     },
 
+    async fetchTierStatus() {
+      try {
+        const response = await api.get('/hybrid/tier-status')
+        this.tierStatus = response.data
+        console.log('📊 Tier status:', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Failed to fetch tier status:', error)
+        return null
+      }
+    },
+
+    async loadAnnotations(predictionId) {
+      try {
+        const response = await api.get(`/prediction/${predictionId}/annotations`)
+        this.annotations = response.data.annotations || []
+        this.annotationsDirty = false
+      } catch (error) {
+        console.error('Failed to load annotations:', error)
+        this.annotations = []
+      }
+    },
+
+    async saveAnnotations(predictionId) {
+      try {
+        const response = await api.put(`/prediction/${predictionId}/annotations`, {
+          annotations: this.annotations
+        })
+        this.annotationsDirty = false
+        return response.data
+      } catch (error) {
+        console.error('Failed to save annotations:', error)
+        throw error
+      }
+    },
+
+    addAnnotation(annotation) {
+      this.annotations.push({
+        id: crypto.randomUUID(),
+        created_at: new Date().toISOString(),
+        ...annotation
+      })
+      this.annotationsDirty = true
+    },
+
+    removeAnnotation(annotationId) {
+      const index = this.annotations.findIndex(a => a.id === annotationId)
+      if (index !== -1) {
+        this.annotations.splice(index, 1)
+        this.annotationsDirty = true
+      }
+    },
+
+    updateAnnotation(annotationId, updates) {
+      const annotation = this.annotations.find(a => a.id === annotationId)
+      if (annotation) {
+        Object.assign(annotation, updates)
+        this.annotationsDirty = true
+      }
+    },
+
     reset() {
       this.selectedActivity = null
       this.flatPace = null
@@ -196,6 +298,9 @@ export const usePredictionStore = defineStore('prediction', {
       this.editedAnchorRatios = null
       this.prediction = null
       this.similarActivities = []
+      this.tierStatus = null
+      this.annotations = []
+      this.annotationsDirty = false
       this.currentStep = 'select-activity'
       this.error = null
     }
