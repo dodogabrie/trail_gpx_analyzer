@@ -1,6 +1,5 @@
 <template>
   <div class="container mx-auto px-4 py-6">
-    <!-- Achievement Notifications -->
     <AchievementNotification />
 
     <div class="mb-6">
@@ -10,7 +9,6 @@
         <strong>{{ gpxStore.currentGpx?.original_filename }}</strong>
       </p>
 
-      <!-- Effort Selector -->
       <div class="mt-4 flex items-center gap-4">
         <label class="text-sm font-medium text-gray-700">Effort Level:</label>
         <div class="flex gap-2">
@@ -54,110 +52,35 @@
       </div>
     </div>
 
-    <!-- Error Display -->
     <div v-if="predictionStore.error" class="bg-red-50 border border-red-200 rounded p-4 mb-6">
       <p class="text-red-600">{{ predictionStore.error }}</p>
       <button
-        @click="predictionStore.error = null"
+        @click="retryPrediction"
         class="text-red-800 underline text-sm mt-2"
       >
-        Dismiss
+        Retry prediction
       </button>
     </div>
 
-    <!-- Step Indicator -->
-    <div class="mb-8">
-      <div class="flex items-center justify-between">
-        <div
-          v-for="(step, index) in steps"
-          :key="step.key"
-          :class="[
-            'flex-1 text-center pb-2',
-            index < steps.length - 1 ? 'border-r' : '',
-            isStepActive(step.key) ? 'border-b-2 border-blue-500' : 'border-b-2 border-gray-200'
-          ]"
-        >
-          <div :class="isStepActive(step.key) ? 'text-blue-600 font-semibold' : 'text-gray-400'">
-            {{ step.label }}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Content Area -->
     <div class="bg-white rounded-lg shadow p-6">
-      <!-- Step 1: Select Activity -->
-      <div v-if="predictionStore.currentStep === 'select-activity'">
-        <ActivitySelector
-          :gpx-id="gpxId"
-        />
-      </div>
-
-      <!-- Step 2: Calibrating (Loading) -->
-      <div v-else-if="predictionStore.currentStep === 'calibrating'" class="text-center py-12">
-        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p class="text-lg font-medium">Calibrating from activity...</p>
-        <p class="text-gray-600 text-sm mb-4">Analyzing pace data</p>
-
-        <!-- Progress Details -->
-        <div class="mt-6 max-w-md mx-auto bg-blue-50 rounded-lg p-4">
-          <div class="space-y-2 text-sm text-left">
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span class="text-gray-700">Downloading activity streams from Strava</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.3s"></div>
-              <span class="text-gray-700">Computing flat pace from terrain</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.6s"></div>
-              <span class="text-gray-700">Extracting anchor points for personalization</span>
-            </div>
-          </div>
-          <div class="mt-4 text-xs text-gray-500 text-center">
-            First-time downloads may take a few seconds
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 3: Review/Edit Calibration -->
-      <div v-else-if="predictionStore.currentStep === 'edit-calibration'">
-        <CalibrationEditor
-          :flat-pace="predictionStore.flatPace"
-          :anchor-ratios="predictionStore.editedAnchorRatios || {}"
-          :global-curve="predictionStore.globalCurve || []"
-          :diagnostics="predictionStore.calibrationDiagnostics || {}"
-          :calibration-activity-streams="predictionStore.calibrationActivityStreams || {}"
-          @save="onCalibrationSaved"
-          @skip="onCalibrationSkipped"
-        />
-      </div>
-
-      <!-- Step 3: Predicting (Loading) -->
-      <div v-else-if="predictionStore.currentStep === 'predicting'" class="text-center py-12">
+      <div v-if="predictionStore.loading" class="text-center py-12">
         <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
         <p class="text-lg font-medium">Generating prediction...</p>
-        <p class="text-gray-600 text-sm mb-4">Analyzing route segments with ML model</p>
+        <p class="text-gray-600 text-sm mb-4">Analyzing route segments with the trained model</p>
 
-        <!-- Progress Details -->
         <div class="mt-6 max-w-md mx-auto bg-blue-50 rounded-lg p-4">
           <div class="space-y-2 text-sm text-left">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span class="text-gray-700">Converting GPX to route profile (50m segments)</span>
+              <span class="text-gray-700">Converting GPX to route profile</span>
             </div>
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
-              <span class="text-gray-700">Running ML prediction model</span>
+              <span class="text-gray-700">Running hybrid prediction</span>
             </div>
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
               <span class="text-gray-700">Calculating segment breakdown</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.6s"></div>
-              <span class="text-gray-700">Filtering similar activities</span>
             </div>
           </div>
           <div class="mt-4 text-xs text-gray-500 text-center">
@@ -166,37 +89,37 @@
         </div>
       </div>
 
-      <!-- Step 4: Results -->
-      <div v-else-if="predictionStore.currentStep === 'results'">
+      <div v-else-if="predictionStore.prediction">
         <PredictionResults
           :prediction="predictionStore.prediction"
           :similar-activities="predictionStore.similarActivities"
           :selected-activity="predictionStore.selectedActivity"
-          @recalibrate="recalibrate"
+          @recalibrate="retryPrediction"
         />
+      </div>
+
+      <div v-else class="text-center py-12 text-gray-600">
+        <p>No prediction yet. Click retry to start.</p>
       </div>
     </div>
 
-    <!-- Back Button -->
     <div class="mt-6">
       <router-link
-        :to="`/analysis/${gpxId}`"
+        to="/"
         class="text-blue-600 hover:text-blue-800"
       >
-        ← Back to Analysis
+        ← Back to Home
       </router-link>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useGpxStore } from '../stores/gpx'
 import { usePredictionStore } from '../stores/prediction'
 import { useAuthStore } from '../stores/auth'
-import ActivitySelector from '../components/ActivitySelector.vue'
-import CalibrationEditor from '../components/CalibrationEditor.vue'
 import PredictionResults from '../components/PredictionResults.vue'
 import AchievementNotification from '../components/AchievementNotification.vue'
 
@@ -207,79 +130,47 @@ const authStore = useAuthStore()
 
 const gpxId = computed(() => parseInt(route.params.gpxId))
 
-const steps = [
-  { key: 'select-activity', label: '1. Select Calibration' },
-  { key: 'calibrating', label: '2. Calibrate' },
-  { key: 'edit-calibration', label: '3. Review & Edit' },
-  { key: 'predicting', label: '4. Predict' },
-  { key: 'results', label: '5. Results' }
-]
-
-const isStepActive = (stepKey) => {
-  const currentIndex = steps.findIndex(s => s.key === predictionStore.currentStep)
-  const stepIndex = steps.findIndex(s => s.key === stepKey)
-  return stepIndex <= currentIndex
+const getEffortDescription = (effort) => {
+  const descriptions = {
+    race: 'Aggressive pace - race effort',
+    training: 'Realistic pace - normal effort',
+    recovery: 'Easy pace - recovery effort'
+  }
+  return descriptions[effort] || descriptions.training
 }
 
-onMounted(async () => {
+const runPrediction = async () => {
+  if (predictionStore.loading) return
+
   // Load GPX data if not already loaded
   if (!gpxStore.currentGpx || gpxStore.currentGpx.id !== gpxId.value) {
     await gpxStore.fetchGpxData(gpxId.value)
   }
 
-  // Check Strava authentication
+  if (!authStore.isAuthenticated) {
+    await authStore.checkAuthStatus()
+  }
+
   if (!authStore.isAuthenticated) {
     predictionStore.error = 'Please connect to Strava first'
     return
   }
 
-  // Fetch calibration activities (only if we might need them)
-  // Check tier status first to see if we can skip calibration
-  const status = await predictionStore.fetchTierStatus()
-  const isAdvancedTier = status?.current_tier === 'TIER_2_PARAMETER_LEARNING' || status?.current_tier === 'TIER_3_RESIDUAL_ML'
-  
-  if (isAdvancedTier) {
-    console.log('🚀 Advanced tier detected (' + status.current_tier + '), skipping calibration steps...')
-    // Auto-predict
-    await predictionStore.predictRouteTime(gpxId.value)
-  } else {
-    // Fallback for Tier 1: Load calibration activities
-    await predictionStore.fetchCalibrationActivities(gpxId.value)
-  }
+  await predictionStore.predictRouteTime(gpxId.value, true)
+}
+
+const retryPrediction = async () => {
+  predictionStore.error = null
+  await runPrediction()
+}
+
+onMounted(async () => {
+  await runPrediction()
 })
 
-// Watch effort changes to auto-repredict
-import { watch } from 'vue'
-watch(() => predictionStore.effort, async (newEffort) => {
-  if (predictionStore.currentStep === 'results' || predictionStore.currentStep === 'predicting') {
-    console.log('Effort changed to ' + newEffort + ', re-predicting...')
-    await predictionStore.predictRouteTime(gpxId.value)
+watch(() => predictionStore.effort, async () => {
+  if (predictionStore.prediction && !predictionStore.loading) {
+    await runPrediction()
   }
 })
-
-const onCalibrationSaved = async (editedData) => {
-  try {
-    await predictionStore.saveCalibration(editedData)
-  } finally {
-    await predictionStore.predictRouteTime(gpxId.value)
-  }
-}
-
-const onCalibrationSkipped = async () => {
-  await predictionStore.predictRouteTime(gpxId.value)
-}
-
-const recalibrate = () => {
-  predictionStore.reset()
-  predictionStore.fetchCalibrationActivities(gpxId.value)
-}
-
-const getEffortDescription = (effort) => {
-  const descriptions = {
-    race: 'Optimistic pace - push your limits',
-    training: 'Realistic pace - normal effort',
-    recovery: 'Conservative pace - easy day'
-  }
-  return descriptions[effort] || ''
-}
 </script>

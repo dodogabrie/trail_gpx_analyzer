@@ -34,7 +34,7 @@ export const usePredictionStore = defineStore('prediction', {
     // UI state
     loading: false,
     error: null,
-    currentStep: 'select-activity' // 'select-activity', 'calibrating', 'edit-calibration', 'predicting', 'results'
+    currentStep: 'predicting' // 'select-activity', 'calibrating', 'edit-calibration', 'predicting', 'results'
   }),
 
   getters: {
@@ -219,7 +219,7 @@ export const usePredictionStore = defineStore('prediction', {
         } else {
           this.error = error.response?.data?.error || 'Prediction failed. Check browser console for details.'
         }
-        this.currentStep = this.flatPace ? 'edit-calibration' : 'select-activity'
+        this.currentStep = 'predicting'
         throw error
       } finally {
         this.loading = false
@@ -301,7 +301,7 @@ export const usePredictionStore = defineStore('prediction', {
       this.tierStatus = null
       this.annotations = []
       this.annotationsDirty = false
-      this.currentStep = 'select-activity'
+      this.currentStep = 'predicting'
       this.error = null
     }
   }

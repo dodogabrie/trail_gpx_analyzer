@@ -7,29 +7,8 @@
             <router-link to="/" class="text-xl font-bold text-gray-800">
               GPX Analyzer
             </router-link>
-            <router-link
-              v-if="authStore.isAuthenticated"
-              to="/training"
-              class="text-gray-700 hover:text-blue-600 font-medium"
-            >
-              AI Training
-            </router-link>
-            <router-link
-              v-if="authStore.isAuthenticated"
-              to="/performance"
-              class="text-gray-700 hover:text-blue-600 font-medium"
-            >
-              Performance
-            </router-link>
           </div>
           <div class="flex items-center space-x-4">
-            <router-link
-              v-if="predictLink"
-              :to="predictLink"
-              class="px-4 py-2 bg-green-600 text-white rounded-full shadow hover:bg-green-700 hover:shadow-md font-semibold text-sm transition-transform duration-150 hover:-translate-y-0.5"
-            >
-              Predict Time
-            </router-link>
             <template v-if="authStore.isAuthenticated">
               <span class="text-sm text-gray-600">
                 {{ authStore.user?.strava_username || 'User' }}
@@ -61,19 +40,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted } from 'vue'
 import { useAuthStore } from './stores/auth'
 
 const authStore = useAuthStore()
-const route = useRoute()
-
-const predictLink = computed(() => {
-  if (route.name === 'Analysis' && route.params.gpxId) {
-    return `/prediction/${route.params.gpxId}`
-  }
-  return null
-})
 
 onMounted(async () => {
   await authStore.checkAuthStatus()

@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from database import db
 from models import UserActivityResidual
 from services.physics_prediction_service import PhysicsPredictionService
+from services.segmentation_service import segment_activity_by_extrema
 from config.hybrid_config import (
     get_logger,
     CURRENT_PHYSICS_MODEL_VERSION,
@@ -181,12 +182,34 @@ class UserResidualService:
     def _extract_actual_segments(self, streams: Dict, segment_len_m: float = SEGMENT_LENGTH_M) -> List[Dict]:
         """Extract actual performance segments from activity streams.
 
+        Uses extrema-based segmentation (peaks/valleys) instead of fixed distance.
+
+        Args:
+            streams: Activity streams
+            segment_len_m: DEPRECATED - kept for compatibility but not used
+
+        Returns:
+            List of segment dicts with actual performance metrics
+        """
+        # Use new extrema-based segmentation
+        try:
+            segments = segment_activity_by_extrema(streams)
+            logger.info(f"Extracted {len(segments)} segments using extrema-based approach")
+            return segments
+        except Exception as e:
+            logger.error(f"Extrema segmentation failed: {e}, falling back to fixed segmentation")
+            # Fallback to old fixed-distance segmentation
+            return self._extract_segments_fixed_distance(streams, segment_len_m)
+
+    def _extract_segments_fixed_distance(self, streams: Dict, segment_len_m: float) -> List[Dict]:
+        """DEPRECATED: Fixed-distance segmentation (fallback only).
+
         Args:
             streams: Activity streams
             segment_len_m: Segment length in meters
 
         Returns:
-            List of segment dicts with actual performance metrics
+            List of segment dicts
         """
         distances = np.array(streams['distance'])
         velocities = np.array(streams['velocity_smooth'])
@@ -203,13 +226,12 @@ class UserResidualService:
             end = start + segment_len_m
             mask = (distances >= start) & (distances < end)
 
-            if mask.sum() < 5:  # Minimum points per segment
+            if mask.sum() < 5:
                 continue
 
             seg_vel = velocities[mask]
             seg_grade = grades[mask]
 
-            # Average velocity and grade
             vel_mean = float(np.nanmean(seg_vel))
             grade_mean = float(np.nanmean(seg_grade))
             grade_std = float(np.nanstd(seg_grade))
@@ -217,10 +239,8 @@ class UserResidualService:
             if not np.isfinite(vel_mean) or vel_mean <= 0:
                 continue
 
-            # Convert velocity to pace ratio (will compare to physics later)
             pace_min_per_km = 60.0 / (vel_mean * 3.6)
 
-            # Elevation gain in segment
             elevation_gain = 0.0
             if has_altitude:
                 seg_alt = altitudes[mask]

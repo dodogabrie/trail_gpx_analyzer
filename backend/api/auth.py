@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, redirect, current_app
 from models import User
 from database import db
 from services.strava_service import StravaService
+from services.strava_sync_service import StravaSyncService
 import jwt
 from datetime import datetime, timedelta
 
@@ -83,6 +84,12 @@ def handle_callback():
 
         db.session.commit()
 
+        # Kick off background Strava sync + training on login
+        try:
+            StravaSyncService().sync_user_async(user.id)
+        except Exception as e:
+            current_app.logger.error(f"Failed to start Strava sync for user {user.id}: {str(e)}")
+
         # Generate JWT
         jwt_token = generate_jwt(user.id)
 
@@ -119,10 +126,6 @@ def auth_status():
         'user': user.to_dict()
     })
 
-@bp.route('/logout', methods=['POST'])
-def logout():
-    """Logout user (client should delete JWT)."""
-    return jsonify({'message': 'Logged out successfully'})
 
 @bp.route('/refresh', methods=['POST'])
 def refresh_strava_token():

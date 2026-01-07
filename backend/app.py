@@ -25,11 +25,10 @@ def create_app(config_class=Config):
         pass  # Flask-Migrate not installed, migrations unavailable
 
     # Register blueprints
-    from api import auth, gpx, strava, analysis, prediction, performance, physics, hybrid
+    from api import auth, gpx, strava, prediction, performance, physics, hybrid
     app.register_blueprint(auth.bp)
     app.register_blueprint(gpx.bp)
     app.register_blueprint(strava.bp)
-    app.register_blueprint(analysis.bp)
     app.register_blueprint(prediction.bp)
     app.register_blueprint(performance.bp)
     app.register_blueprint(physics.bp)

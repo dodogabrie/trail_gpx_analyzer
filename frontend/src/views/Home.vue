@@ -3,12 +3,17 @@
     <div class="bg-white p-6 rounded-lg shadow">
       <h2 class="text-2xl font-bold mb-4">Upload GPX File</h2>
 
+      <div v-if="!authStore.isAuthenticated" class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+        <p class="text-sm text-yellow-800">Connect your Strava account to enable predictions.</p>
+      </div>
+
       <div class="mb-4">
         <input
           type="file"
           accept=".gpx"
           @change="handleFileSelect"
           ref="fileInput"
+          :disabled="!authStore.isAuthenticated"
           class="block w-full text-sm text-gray-500
             file:mr-4 file:py-2 file:px-4
             file:rounded file:border-0
@@ -20,7 +25,7 @@
 
       <button
         @click="uploadFile"
-        :disabled="!selectedFile || uploading"
+        :disabled="!authStore.isAuthenticated || !selectedFile || uploading"
         class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
       >
         {{ uploading ? 'Uploading...' : 'Upload' }}
@@ -46,10 +51,10 @@
           </div>
           <div class="space-x-2">
             <router-link
-              :to="`/analysis/${file.id}`"
+              :to="`/prediction/${file.id}`"
               class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
             >
-              Analyze
+              Predict
             </router-link>
             <button
               @click="deleteFile(file.id)"
@@ -258,12 +263,13 @@ const handleFileSelect = (event) => {
 }
 
 const uploadFile = async () => {
+  if (!authStore.isAuthenticated) return
   if (!selectedFile.value) return
 
   uploading.value = true
   try {
     const result = await gpxStore.uploadGpx(selectedFile.value)
-    router.push(`/analysis/${result.id}`)
+    router.push(`/prediction/${result.id}`)
   } catch (error) {
     console.error('Upload failed:', error)
   } finally {

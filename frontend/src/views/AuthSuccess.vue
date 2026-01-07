@@ -2,7 +2,7 @@
   <div class="text-center py-12">
     <h2 class="text-2xl font-bold text-green-600 mb-4">Authentication Successful!</h2>
     <p class="text-gray-600 mb-4">You have been successfully connected to Strava.</p>
-    <p class="text-gray-500">Redirecting to home...</p>
+    <p class="text-gray-500">Syncing your Strava activities in the background. Redirecting to home...</p>
   </div>
 </template>
 

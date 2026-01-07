@@ -174,6 +174,7 @@ class ResidualMLService:
                 physics_pace_ratio = segment.get('physics_pace_ratio', 1.0)
                 actual_pace_ratio = segment.get('actual_pace_ratio', 1.0)
                 elevation_gain = segment.get('elevation_gain', 0)
+                avg_heartrate = segment.get('avg_heartrate')
 
                 # Compute residual
                 residual_mult = actual_pace_ratio / physics_pace_ratio if physics_pace_ratio > 0 else 1.0
@@ -203,6 +204,7 @@ class ResidualMLService:
                     'cum_elevation_gain_m': cum_elevation_gain,
                     'elevation_gain_rate': elevation_gain_rate,
                     'rolling_avg_grade_500m': rolling_avg_grade_500m,
+                    'avg_heartrate': avg_heartrate if avg_heartrate is not None else 0.0,
                     'residual': residual_mult,
                     'weight': residual.recency_weight
                 }
