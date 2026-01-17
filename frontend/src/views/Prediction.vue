@@ -1,24 +1,24 @@
 <template>
-  <div class="container mx-auto px-4 py-6">
+  <div class="stack">
     <AchievementNotification />
 
-    <div class="mb-6">
-      <h1 class="text-3xl font-bold">Route Time Prediction</h1>
-      <p class="text-gray-600 mt-2">
+    <section class="card stack">
+      <div>
+        <h1 class="section-title">Route Time Prediction</h1>
+        <p class="section-subtitle">
         Predict your time for
         <strong>{{ gpxStore.currentGpx?.original_filename }}</strong>
-      </p>
+        </p>
+      </div>
 
-      <div class="mt-4 flex items-center gap-4">
-        <label class="text-sm font-medium text-gray-700">Effort Level:</label>
-        <div class="flex gap-2">
+      <div class="flex flex-wrap items-center gap-4">
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Effort</span>
+        <div class="segmented">
           <button
             @click="predictionStore.effort = 'race'"
             :class="[
-              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              predictionStore.effort === 'race'
-                ? 'bg-red-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              'segment-btn',
+              predictionStore.effort === 'race' ? 'segment-active' : ''
             ]"
           >
             🏁 Race
@@ -26,10 +26,8 @@
           <button
             @click="predictionStore.effort = 'training'"
             :class="[
-              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              predictionStore.effort === 'training'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              'segment-btn',
+              predictionStore.effort === 'training' ? 'segment-active' : ''
             ]"
           >
             🏃 Training
@@ -37,53 +35,51 @@
           <button
             @click="predictionStore.effort = 'recovery'"
             :class="[
-              'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              predictionStore.effort === 'recovery'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              'segment-btn',
+              predictionStore.effort === 'recovery' ? 'segment-active' : ''
             ]"
           >
             🚶 Recovery
           </button>
         </div>
-        <span class="text-xs text-gray-500">
+        <span class="text-xs text-slate-500">
           {{ getEffortDescription(predictionStore.effort) }}
         </span>
       </div>
-    </div>
+    </section>
 
-    <div v-if="predictionStore.error" class="bg-red-50 border border-red-200 rounded p-4 mb-6">
-      <p class="text-red-600">{{ predictionStore.error }}</p>
+    <div v-if="predictionStore.error" class="alert alert-error">
+      <p>{{ predictionStore.error }}</p>
       <button
         @click="retryPrediction"
-        class="text-red-800 underline text-sm mt-2"
+        class="btn btn-ghost mt-2"
       >
         Retry prediction
       </button>
     </div>
 
-    <div class="bg-white rounded-lg shadow p-6">
+    <div class="card">
       <div v-if="predictionStore.loading" class="text-center py-12">
-        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <p class="text-lg font-medium">Generating prediction...</p>
-        <p class="text-gray-600 text-sm mb-4">Analyzing route segments with the trained model</p>
+        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-slate-900 mx-auto mb-4"></div>
+        <p class="text-lg font-semibold">Generating prediction...</p>
+        <p class="text-sm text-slate-600 mb-4">Analyzing route segments with the trained model</p>
 
-        <div class="mt-6 max-w-md mx-auto bg-blue-50 rounded-lg p-4">
+        <div class="mt-6 max-w-md mx-auto card card-soft">
           <div class="space-y-2 text-sm text-left">
             <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span class="text-gray-700">Converting GPX to route profile</span>
+              <div class="w-2 h-2 bg-lime-400 rounded-full animate-pulse"></div>
+              <span class="text-slate-700">Converting GPX to route profile</span>
             </div>
             <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
-              <span class="text-gray-700">Running hybrid prediction</span>
+              <div class="w-2 h-2 bg-lime-400 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
+              <span class="text-slate-700">Running hybrid prediction</span>
             </div>
             <div class="flex items-center gap-2">
-              <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
-              <span class="text-gray-700">Calculating segment breakdown</span>
+              <div class="w-2 h-2 bg-lime-400 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
+              <span class="text-slate-700">Calculating segment breakdown</span>
             </div>
           </div>
-          <div class="mt-4 text-xs text-gray-500 text-center">
+          <div class="mt-4 text-xs text-slate-500 text-center">
             This may take 5-30 seconds depending on route complexity
           </div>
         </div>
@@ -98,19 +94,14 @@
         />
       </div>
 
-      <div v-else class="text-center py-12 text-gray-600">
+      <div v-else class="text-center py-12 text-slate-600">
         <p>No prediction yet. Click retry to start.</p>
       </div>
     </div>
 
-    <div class="mt-6">
-      <router-link
-        to="/"
-        class="text-blue-600 hover:text-blue-800"
-      >
-        ← Back to Home
-      </router-link>
-    </div>
+    <router-link to="/" class="link">
+      ← Back to Home
+    </router-link>
   </div>
 </template>
 

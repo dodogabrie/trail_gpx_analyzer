@@ -1,64 +1,66 @@
 <template>
-  <div class="space-y-6">
-    <div class="bg-white p-6 rounded-lg shadow">
-      <h2 class="text-2xl font-bold mb-4">Upload GPX File</h2>
-
-      <div v-if="!authStore.isAuthenticated" class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-        <p class="text-sm text-yellow-800">Connect your Strava account to enable predictions.</p>
+  <div class="stack">
+    <div class="card stack">
+      <div>
+        <h2 class="section-title">Upload GPX File</h2>
+        <p class="section-subtitle">Drop your route and start the prediction engine.</p>
       </div>
 
-      <div class="mb-4">
+      <div v-if="!authStore.isAuthenticated" class="alert alert-warn">
+        <p>Connect your Strava account to enable predictions.</p>
+      </div>
+
+      <div>
         <input
           type="file"
           accept=".gpx"
           @change="handleFileSelect"
           ref="fileInput"
           :disabled="!authStore.isAuthenticated"
-          class="block w-full text-sm text-gray-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded file:border-0
-            file:text-sm file:font-semibold
-            file:bg-blue-50 file:text-blue-700
-            hover:file:bg-blue-100"
+          class="input-file"
         />
       </div>
 
-      <button
-        @click="uploadFile"
-        :disabled="!authStore.isAuthenticated || !selectedFile || uploading"
-        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-      >
-        {{ uploading ? 'Uploading...' : 'Upload' }}
-      </button>
-
-      <p v-if="gpxStore.error" class="text-red-600 mt-2">{{ gpxStore.error }}</p>
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          @click="uploadFile"
+          :disabled="!authStore.isAuthenticated || !selectedFile || uploading"
+          class="btn btn-primary disabled:opacity-50"
+        >
+          {{ uploading ? 'Uploading...' : 'Upload' }}
+        </button>
+        <p v-if="gpxStore.error" class="text-sm text-rose-600">{{ gpxStore.error }}</p>
+      </div>
     </div>
 
-    <div v-if="gpxStore.gpxList.length > 0" class="bg-white p-6 rounded-lg shadow">
-      <h2 class="text-2xl font-bold mb-4">Your GPX Files</h2>
+    <div v-if="gpxStore.gpxList.length > 0" class="card stack">
+      <div>
+        <h2 class="section-title">Your GPX Files</h2>
+        <p class="section-subtitle">Pick a file to predict, compare, and iterate.</p>
+      </div>
 
-      <div class="space-y-2">
+      <div class="space-y-3">
         <div
           v-for="file in gpxStore.gpxList"
           :key="file.id"
-          class="flex justify-between items-center p-3 bg-gray-50 rounded border"
+          class="list-row"
         >
           <div>
-            <p class="font-medium">{{ file.original_filename }}</p>
-            <p class="text-sm text-gray-600">
+            <p class="font-semibold text-slate-900">{{ file.original_filename }}</p>
+            <p class="text-sm text-slate-600">
               Uploaded: {{ new Date(file.upload_date).toLocaleString() }}
             </p>
           </div>
-          <div class="space-x-2">
+          <div class="flex flex-wrap gap-2">
             <router-link
               :to="`/prediction/${file.id}`"
-              class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+              class="btn btn-dark"
             >
               Predict
             </router-link>
             <button
               @click="deleteFile(file.id)"
-              class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+              class="btn btn-danger"
             >
               Delete
             </button>
@@ -67,10 +69,9 @@
       </div>
     </div>
 
-    <div v-else-if="!gpxStore.loading" class="bg-white p-6 rounded-lg shadow text-center">
-      <p class="text-gray-500">No GPX files uploaded yet. Upload your first file to get started!</p>
+    <div v-else-if="!gpxStore.loading" class="card card-soft text-center">
+      <p class="text-slate-600">No GPX files uploaded yet. Upload your first file to get started!</p>
     </div>
-
   </div>
 </template>
 

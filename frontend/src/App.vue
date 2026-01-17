@@ -1,39 +1,33 @@
 <template>
-  <div id="app" class="min-h-screen bg-gray-100">
-    <nav class="bg-white shadow-lg">
-      <div class="max-w-7xl mx-auto px-4">
-        <div class="flex justify-between h-16">
-          <div class="flex items-center space-x-6">
-            <router-link to="/" class="text-xl font-bold text-gray-800">
-              GPX Analyzer
-            </router-link>
-          </div>
-          <div class="flex items-center space-x-4">
-            <template v-if="authStore.isAuthenticated">
-              <span class="text-sm text-gray-600">
-                {{ authStore.user?.strava_username || 'User' }}
-              </span>
-              <button
-                @click="logout"
-                class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Logout
-              </button>
-            </template>
-            <template v-else>
-              <button
-                @click="connectStrava"
-                class="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
-              >
-                Connect Strava
-              </button>
-            </template>
-          </div>
+  <div id="app" class="app-shell">
+    <div class="app-glow"></div>
+
+    <nav class="relative z-10">
+      <div class="layout flex h-16 items-center justify-between">
+        <router-link to="/" class="flex items-center gap-3 text-lg font-semibold uppercase tracking-[0.3em] text-slate-900">
+          <span class="badge">GPX</span>
+          <span>Analyzer</span>
+        </router-link>
+
+        <div class="flex items-center gap-3">
+          <template v-if="authStore.isAuthenticated">
+            <span class="pill">
+              {{ authStore.user?.strava_username || 'Athlete' }}
+            </span>
+            <button @click="logout" class="btn btn-danger">
+              Logout
+            </button>
+          </template>
+          <template v-else>
+            <button @click="connectStrava" class="btn btn-signal">
+              Connect Strava
+            </button>
+          </template>
         </div>
       </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto py-6 px-4">
+    <main class="layout page relative z-10">
       <router-view />
     </main>
   </div>

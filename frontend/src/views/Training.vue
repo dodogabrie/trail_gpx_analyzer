@@ -1,16 +1,19 @@
 <template>
-  <div class="container mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold mb-8">AI Training Center</h1>
+  <div class="stack">
+    <div>
+      <h1 class="section-title">AI Training Center</h1>
+      <p class="section-subtitle">Tune the engine with your most representative activities.</p>
+    </div>
 
     <!-- Tier Status Card -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="card stack">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-2xl font-bold">Prediction System Status</h2>
         <button
           v-if="tierStatus && tierStatus.activity_count >= 15"
           @click="retrainMLModel"
           :disabled="retraining"
-          class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          class="btn btn-dark disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span v-if="retraining" class="animate-spin">⟳</span>
           <span v-else>🔄</span>
@@ -22,53 +25,54 @@
         <!-- Current Tier Badge -->
         <div class="flex items-center justify-between">
           <div>
-            <span class="text-sm text-gray-600">Current Tier</span>
-            <h3 class="text-xl font-bold text-blue-600">{{ formatTier(tierStatus.current_tier) }}</h3>
-            <p class="text-sm text-gray-600 mt-1">{{ tierStatus.confidence_level }} confidence</p>
+            <span class="text-sm text-slate-600">Current Tier</span>
+            <h3 class="text-xl font-bold text-slate-900">{{ formatTier(tierStatus.current_tier) }}</h3>
+            <p class="text-sm text-slate-600 mt-1">{{ tierStatus.confidence_level }} confidence</p>
           </div>
           <div class="text-right">
-            <span class="text-sm text-gray-600">Activities Downloaded</span>
+            <span class="text-sm text-slate-600">Activities Downloaded</span>
             <p class="text-3xl font-bold">{{ tierStatus.activity_count }}</p>
           </div>
         </div>
 
         <!-- Progress Bar -->
         <div v-if="tierStatus.next_tier" class="space-y-2">
-          <div class="flex justify-between text-sm text-gray-600">
+          <div class="flex justify-between text-sm text-slate-600">
             <span>Progress to {{ formatTier(tierStatus.next_tier) }}</span>
             <span>{{ tierStatus.activities_needed_for_next_tier }} more needed</span>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-4">
+          <div class="w-full bg-slate-200 rounded-full h-4">
             <div
-              class="bg-blue-600 h-4 rounded-full transition-all duration-500"
+              class="h-4 rounded-full transition-all duration-500"
+              style="background: linear-gradient(120deg, #bef264 0%, #4ade80 45%, #38bdf8 100%);"
               :style="{ width: tierStatus.progress_to_next_tier_pct + '%' }"
             ></div>
           </div>
         </div>
 
         <!-- Tier Benefits -->
-        <div class="grid grid-cols-3 gap-4 mt-6">
-          <div class="border rounded p-4" :class="tierStatus.activity_count >= 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-300'">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+          <div class="border rounded-xl p-4" :class="tierStatus.activity_count >= 0 ? 'border-lime-300 bg-lime-50' : 'border-slate-300'">
             <div class="text-center">
               <div class="text-2xl mb-2">🔬</div>
               <h4 class="font-bold text-sm">Tier 1: Physics</h4>
-              <p class="text-xs text-gray-600 mt-1">0+ activities</p>
+              <p class="text-xs text-slate-600 mt-1">0+ activities</p>
               <p class="text-xs mt-2">Default physics model</p>
             </div>
           </div>
-          <div class="border rounded p-4" :class="tierStatus.activity_count >= 5 ? 'border-blue-500 bg-blue-50' : 'border-gray-300'">
+          <div class="border rounded-xl p-4" :class="tierStatus.activity_count >= 5 ? 'border-lime-300 bg-lime-50' : 'border-slate-300'">
             <div class="text-center">
               <div class="text-2xl mb-2">⚙️</div>
               <h4 class="font-bold text-sm">Tier 2: Personalized</h4>
-              <p class="text-xs text-gray-600 mt-1">5+ activities</p>
+              <p class="text-xs text-slate-600 mt-1">5+ activities</p>
               <p class="text-xs mt-2">Learned physics parameters</p>
             </div>
           </div>
-          <div class="border rounded p-4" :class="tierStatus.activity_count >= 15 ? 'border-blue-500 bg-blue-50' : 'border-gray-300'">
+          <div class="border rounded-xl p-4" :class="tierStatus.activity_count >= 15 ? 'border-lime-300 bg-lime-50' : 'border-slate-300'">
             <div class="text-center">
               <div class="text-2xl mb-2">🤖</div>
               <h4 class="font-bold text-sm">Tier 3: ML Enhanced</h4>
-              <p class="text-xs text-gray-600 mt-1">15+ activities</p>
+              <p class="text-xs text-slate-600 mt-1">15+ activities</p>
               <p class="text-xs mt-2">AI-powered corrections</p>
             </div>
           </div>
@@ -76,45 +80,45 @@
       </div>
 
       <div v-else class="text-center py-8">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p class="text-gray-600 mt-4">Loading tier status...</p>
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+        <p class="text-slate-600 mt-4">Loading tier status...</p>
       </div>
     </div>
 
     <!-- Training Activities Management -->
-    <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="card stack">
       <h2 class="text-2xl font-bold mb-4">Training Activities</h2>
 
       <div v-if="loadingTrainingActivities" class="text-center py-8">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p class="text-gray-600 mt-4">Loading training activities...</p>
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
+        <p class="text-slate-600 mt-4">Loading training activities...</p>
       </div>
 
       <div v-else-if="trainingActivities.length === 0" class="text-center py-8">
-        <p class="text-gray-600">No activities downloaded yet. Download activities below to start training.</p>
+        <p class="text-slate-600">No activities downloaded yet. Download activities below to start training.</p>
       </div>
 
       <div v-else class="space-y-4">
         <!-- Summary Stats -->
-        <div class="flex gap-4 mb-4">
-          <div class="bg-green-50 border border-green-200 rounded-lg p-4 flex-1">
-            <div class="text-sm text-gray-600">Included in Training</div>
-            <div class="text-3xl font-bold text-green-700">{{ trainingActivityStats.included_count }}</div>
+        <div class="flex flex-col gap-4 sm:flex-row mb-4">
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex-1">
+            <div class="text-sm text-slate-600">Included in Training</div>
+            <div class="text-3xl font-bold text-emerald-700">{{ trainingActivityStats.included_count }}</div>
           </div>
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 flex-1">
-            <div class="text-sm text-gray-600">Excluded</div>
-            <div class="text-3xl font-bold text-gray-700">{{ trainingActivityStats.excluded_count }}</div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 flex-1">
+            <div class="text-sm text-slate-600">Excluded</div>
+            <div class="text-3xl font-bold text-slate-700">{{ trainingActivityStats.excluded_count }}</div>
           </div>
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 flex-1">
-            <div class="text-sm text-gray-600">Total Downloaded</div>
-            <div class="text-3xl font-bold text-blue-700">{{ trainingActivityStats.total }}</div>
+          <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 flex-1">
+            <div class="text-sm text-slate-600">Total Downloaded</div>
+            <div class="text-3xl font-bold text-slate-900">{{ trainingActivityStats.total }}</div>
           </div>
         </div>
 
         <!-- Activities List -->
         <div class="max-h-96 overflow-y-auto border rounded-lg">
           <table class="w-full">
-            <thead class="bg-gray-50 sticky top-0">
+            <thead class="bg-slate-50 sticky top-0">
               <tr>
                 <th class="px-4 py-2 text-left">Date</th>
                 <th class="px-4 py-2 text-left">Type</th>
@@ -129,22 +133,22 @@
               <tr
                 v-for="activity in trainingActivities"
                 :key="activity.id"
-                class="border-b hover:bg-gray-50"
-                :class="activity.excluded_from_training ? 'bg-gray-100 opacity-60' : 'bg-white'"
+                class="border-b hover:bg-slate-50"
+                :class="activity.excluded_from_training ? 'bg-slate-100 opacity-60' : 'bg-white'"
               >
                 <td class="px-4 py-2 text-sm">{{ formatDate(activity.activity_date) }}</td>
                 <td class="px-4 py-2 text-sm">{{ activity.activity_type }}</td>
                 <td class="px-4 py-2 text-right">{{ activity.distance_km.toFixed(1) }} km</td>
                 <td class="px-4 py-2 text-right">{{ Math.round(activity.elevation_gain_m) }} m</td>
-                <td class="px-4 py-2 text-right text-gray-600">{{ activity.segment_count }}</td>
-                <td class="px-4 py-2 text-center text-sm text-gray-600">{{ activity.recency_weight.toFixed(2) }}</td>
+                <td class="px-4 py-2 text-right text-slate-600">{{ activity.segment_count }}</td>
+                <td class="px-4 py-2 text-center text-sm text-slate-600">{{ activity.recency_weight.toFixed(2) }}</td>
                 <td class="px-4 py-2 text-center">
                   <button
                     @click="toggleTrainingStatus(activity)"
-                    class="px-3 py-1 rounded text-sm font-medium transition-colors"
+                    class="btn btn-outline"
                     :class="activity.excluded_from_training
-                      ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      : 'bg-green-100 text-green-700 hover:bg-green-200'"
+                      ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'"
                   >
                     {{ activity.excluded_from_training ? 'Excluded' : 'Included' }}
                   </button>
@@ -157,12 +161,12 @@
     </div>
 
     <!-- Activity Download Card -->
-    <div class="bg-white rounded-lg shadow-lg p-6">
+    <div class="card stack">
       <h2 class="text-2xl font-bold mb-4">Download Training Activities</h2>
 
       <div v-if="!stravaActivities.length" class="text-center py-8">
-        <p class="text-gray-600 mb-4">Connect Strava to download activities</p>
-        <button class="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+        <p class="text-slate-600 mb-4">Connect Strava to download activities</p>
+        <button class="btn btn-signal">
           Connect Strava
         </button>
       </div>
@@ -172,28 +176,28 @@
         <div class="flex gap-3 mb-4 items-center flex-wrap">
           <button
             @click="selectBestRuns(5)"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+            class="btn btn-primary"
           >
             🏃 Select 5 Best Runs
           </button>
           <button
             @click="selectBestRuns(15)"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+            class="btn btn-primary"
           >
             🏃 Select 15 Best Runs
           </button>
           <button
             @click="selectBestRuns(20)"
-            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+            class="btn btn-primary"
           >
             🏃 Select 20 Best Runs
           </button>
-          <div class="text-sm text-gray-600">
+          <div class="text-sm text-slate-600">
             (Long trail/runs preferred)
           </div>
           <button
             @click="selectedIds = []"
-            class="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            class="btn btn-outline"
           >
             Clear
           </button>
@@ -201,7 +205,7 @@
           <button
             @click="refreshActivities"
             :disabled="loadingActivities"
-            class="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50"
+            class="btn btn-outline disabled:opacity-50"
           >
             <span v-if="loadingActivities" class="animate-spin">⟳</span>
             <span v-else>🔄</span>
@@ -212,27 +216,27 @@
         <!-- Activity List -->
         <div class="max-h-96 overflow-y-auto border rounded-lg">
           <table class="w-full">
-            <thead class="bg-gray-50 sticky top-0">
+            <thead class="bg-slate-50 sticky top-0">
               <tr>
                 <th class="px-4 py-2 text-left">
                   <input type="checkbox" @change="toggleAll" :checked="selectedIds.length === sortedActivities.length">
                 </th>
-                <th class="px-4 py-2 text-left cursor-pointer hover:bg-gray-100" @click="toggleSort('name')">
+                <th class="px-4 py-2 text-left cursor-pointer hover:bg-slate-100" @click="toggleSort('name')">
                   Activity {{ getSortIcon('name') }}
                 </th>
-                <th class="px-4 py-2 text-left cursor-pointer hover:bg-gray-100" @click="toggleSort('type')">
+                <th class="px-4 py-2 text-left cursor-pointer hover:bg-slate-100" @click="toggleSort('type')">
                   Type {{ getSortIcon('type') }}
                 </th>
-                <th class="px-4 py-2 text-left cursor-pointer hover:bg-gray-100" @click="toggleSort('date')">
+                <th class="px-4 py-2 text-left cursor-pointer hover:bg-slate-100" @click="toggleSort('date')">
                   Date {{ getSortIcon('date') }}
                 </th>
-                <th class="px-4 py-2 text-right cursor-pointer hover:bg-gray-100" @click="toggleSort('distance')">
+                <th class="px-4 py-2 text-right cursor-pointer hover:bg-slate-100" @click="toggleSort('distance')">
                   Distance {{ getSortIcon('distance') }}
                 </th>
-                <th class="px-4 py-2 text-right cursor-pointer hover:bg-gray-100" @click="toggleSort('elevation')">
+                <th class="px-4 py-2 text-right cursor-pointer hover:bg-slate-100" @click="toggleSort('elevation')">
                   D+ {{ getSortIcon('elevation') }}
                 </th>
-                <th class="px-4 py-2 text-right cursor-pointer hover:bg-gray-100 font-semibold" @click="toggleSort('combo_score')" title="Distance (km) + D+ (m) / 100">
+                <th class="px-4 py-2 text-right cursor-pointer hover:bg-slate-100 font-semibold" @click="toggleSort('combo_score')" title="Distance (km) + D+ (m) / 100">
                   Score {{ getSortIcon('combo_score') }}
                 </th>
                 <th class="px-4 py-2 text-center">Status</th>
@@ -242,7 +246,7 @@
               <tr
                 v-for="activity in sortedActivities"
                 :key="activity.strava_id"
-                class="border-b hover:bg-gray-50"
+                class="border-b hover:bg-slate-50"
                 :class="getActivityRowClass(activity)"
               >
                 <td class="px-4 py-2">
@@ -258,13 +262,13 @@
                     {{ getActivityTypeLabel(activity) }}
                   </span>
                 </td>
-                <td class="px-4 py-2 text-sm text-gray-600">{{ formatDate(activity.start_date) }}</td>
+                <td class="px-4 py-2 text-sm text-slate-600">{{ formatDate(activity.start_date) }}</td>
                 <td class="px-4 py-2 text-right">{{ (activity.distance / 1000).toFixed(1) }} km</td>
-                <td class="px-4 py-2 text-right text-gray-700">{{ Math.round(activity.total_elevation_gain || 0) }} m</td>
-                <td class="px-4 py-2 text-right font-semibold text-blue-700">{{ activity.combo_score.toFixed(1) }}</td>
+                <td class="px-4 py-2 text-right text-slate-700">{{ Math.round(activity.total_elevation_gain || 0) }} m</td>
+                <td class="px-4 py-2 text-right font-semibold text-slate-900">{{ activity.combo_score.toFixed(1) }}</td>
                 <td class="px-4 py-2 text-center">
-                  <span v-if="activity.has_streams" class="text-green-600 text-sm">✓ Downloaded</span>
-                  <span v-else class="text-gray-400 text-sm">—</span>
+                  <span v-if="activity.has_streams" class="text-emerald-600 text-sm">✓ Downloaded</span>
+                  <span v-else class="text-slate-400 text-sm">—</span>
                 </td>
               </tr>
             </tbody>
@@ -273,14 +277,14 @@
 
         <!-- Results -->
         <div v-if="downloadResults" class="mt-4 space-y-2">
-          <div v-if="downloadResults.success.length" class="bg-green-50 border border-green-200 rounded p-3">
-            <p class="font-medium text-green-800">✓ {{ downloadResults.success.length }} activities downloaded</p>
+          <div v-if="downloadResults.success.length" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <p class="font-medium text-emerald-800">✓ {{ downloadResults.success.length }} activities downloaded</p>
           </div>
-          <div v-if="downloadResults.skipped.length" class="bg-yellow-50 border border-yellow-200 rounded p-3">
-            <p class="font-medium text-yellow-800">⚠ {{ downloadResults.skipped.length }} activities skipped (already downloaded)</p>
+          <div v-if="downloadResults.skipped.length" class="rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p class="font-medium text-amber-800">⚠ {{ downloadResults.skipped.length }} activities skipped (already downloaded)</p>
           </div>
-          <div v-if="downloadResults.failed.length" class="bg-red-50 border border-red-200 rounded p-3">
-            <p class="font-medium text-red-800">✗ {{ downloadResults.failed.length }} activities failed</p>
+          <div v-if="downloadResults.failed.length" class="rounded-xl border border-rose-200 bg-rose-50 p-3">
+            <p class="font-medium text-rose-800">✗ {{ downloadResults.failed.length }} activities failed</p>
           </div>
         </div>
       </div>

@@ -1,11 +1,11 @@
 <template>
   <div v-if="loading" class="text-center py-12">
-    <p class="text-xl text-gray-600">Loading GPX data...</p>
+    <p class="text-xl text-slate-600">Loading GPX data...</p>
   </div>
 
   <div v-else-if="error" class="text-center py-12">
-    <p class="text-xl text-red-600">{{ error }}</p>
-    <router-link to="/" class="text-blue-500 hover:underline mt-4 inline-block">
+    <p class="text-xl text-rose-600">{{ error }}</p>
+    <router-link to="/" class="link mt-4 inline-block">
       Back to Home
     </router-link>
   </div>
@@ -15,9 +15,9 @@
     <div class="flex flex-1 min-h-0 p-3">
       <div class="flex-1 min-w-0 relative">
         <!-- Floating GPX info bubble -->
-        <div class="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg z-[1000] pointer-events-none">
+        <div class="absolute top-3 right-3 rounded-xl border border-white/70 bg-white/85 px-3 py-2 shadow-lg backdrop-blur-sm z-[1000] pointer-events-none">
           <p class="text-sm font-semibold truncate max-w-xs">{{ gpxStore.currentGpx?.original_filename }}</p>
-          <p class="text-xs text-gray-600">{{ (gpxStore.totalDistance / 1000).toFixed(2) }} km</p>
+          <p class="text-xs text-slate-600">{{ (gpxStore.totalDistance / 1000).toFixed(2) }} km</p>
         </div>
 
         <MapView
@@ -31,19 +31,19 @@
     <!-- Elevation profile at bottom -->
     <div class="flex-shrink-0 px-3 pb-3 relative">
       <!-- Stats overlay on elevation chart -->
-      <div v-if="stats" class="absolute top-2 right-6 bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg z-10 text-xs">
+      <div v-if="stats" class="absolute top-2 right-6 rounded-xl border border-white/70 bg-white/85 px-3 py-2 shadow-lg backdrop-blur-sm z-10 text-xs">
         <div class="flex gap-4">
           <div>
-            <span class="text-gray-600">Dist:</span>
+            <span class="text-slate-600">Dist:</span>
             <span class="font-bold ml-1">{{ (stats.distance / 1000).toFixed(2) }} km</span>
           </div>
           <div>
-            <span class="text-gray-600">D+:</span>
-            <span class="font-bold text-green-600 ml-1">{{ stats.elevation_gain.toFixed(0) }} m</span>
+            <span class="text-slate-600">D+:</span>
+            <span class="font-bold text-emerald-600 ml-1">{{ stats.elevation_gain.toFixed(0) }} m</span>
           </div>
           <div>
-            <span class="text-gray-600">D-:</span>
-            <span class="font-bold text-red-600 ml-1">{{ stats.elevation_loss.toFixed(0) }} m</span>
+            <span class="text-slate-600">D-:</span>
+            <span class="font-bold text-rose-600 ml-1">{{ stats.elevation_loss.toFixed(0) }} m</span>
           </div>
         </div>
       </div>
@@ -64,7 +64,6 @@ import { useGpxStore } from '../stores/gpx'
 import { useMapStore } from '../stores/map'
 import MapView from '../components/MapView.vue'
 import ElevationProfile from '../components/ElevationProfile.vue'
-import StatsPanel from '../components/StatsPanel.vue'
 import api from '../services/api'
 
 const route = useRoute()

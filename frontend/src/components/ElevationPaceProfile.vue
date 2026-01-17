@@ -76,9 +76,88 @@ const isZooming = ref(false)
 const zoomDebounceTimer = ref(null)
 
 const formatPace = (paceDecimal) => {
-  const minutes = Math.floor(paceDecimal)
-  const seconds = Math.round((paceDecimal - minutes) * 60)
+  const baseMinutes = Math.floor(paceDecimal)
+  const rawSeconds = Math.round((paceDecimal - baseMinutes) * 60)
+  const carry = rawSeconds === 60 ? 1 : 0
+  const minutes = baseMinutes + carry
+  const seconds = rawSeconds === 60 ? 0 : rawSeconds
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+const getPunctualMetrics = (index) => {
+  if (!Number.isFinite(index) || index < 0 || index >= props.points.length) {
+    return { slope: null }
+  }
+
+  const windowDistance = 50
+  const halfWindow = windowDistance / 2
+  const minDistance = 15
+
+  let startIndex = index
+  let endIndex = index
+
+  while (startIndex > 0 &&
+    (props.points[index].distance - props.points[startIndex].distance) < halfWindow) {
+    startIndex -= 1
+  }
+
+  while (endIndex < props.points.length - 1 &&
+    (props.points[endIndex].distance - props.points[index].distance) < halfWindow) {
+    endIndex += 1
+  }
+
+  if (startIndex === endIndex) {
+    return { slope: null }
+  }
+
+  const start = props.points[startIndex]
+  const end = props.points[endIndex]
+  const distanceDelta = end.distance - start.distance
+  const elevationDelta = end.elevation - start.elevation
+
+  if (!Number.isFinite(distanceDelta) || distanceDelta <= minDistance) {
+    return { slope: null }
+  }
+
+  const slope = (elevationDelta / distanceDelta) * 100
+
+  return {
+    slope: Number.isFinite(slope) ? slope : null
+  }
+}
+
+const getPaceAtDistance = (distanceKm) => {
+  if (!Number.isFinite(distanceKm)) return null
+
+  const rawSegments = props.rawSegments || []
+  if (rawSegments.length > 0) {
+    const first = rawSegments[0]
+    if (Number.isFinite(first.distance_m)) {
+      const targetM = distanceKm * 1000
+      const seg = rawSegments.find(segment => {
+        const length = segment.length_m || 0
+        return targetM >= segment.distance_m && targetM <= segment.distance_m + length
+      })
+      const pace = seg?.pace_min_km ?? seg?.avg_pace_min_per_km
+      if (Number.isFinite(pace)) return pace
+    } else {
+      const seg = rawSegments.find(segment => {
+        const startKm = segment.start_km || 0
+        const endKm = segment.end_km || segment.segment_km || 0
+        return distanceKm >= startKm && distanceKm <= endKm
+      })
+      const pace = seg?.avg_pace_min_per_km ?? seg?.pace_min_km
+      if (Number.isFinite(pace)) return pace
+    }
+  }
+
+  const fallback = props.segments.find(segment => {
+    const startKm = segment.start_km || 0
+    const endKm = segment.end_km || segment.segment_km || 0
+    return distanceKm >= startKm && distanceKm <= endKm
+  })
+
+  return Number.isFinite(fallback?.avg_pace_min_per_km) ? fallback.avg_pace_min_per_km : null
 }
 
 const getElevationAtDistance = (distanceKm) => {
@@ -485,11 +564,16 @@ const chartOption = computed(() => {
 
         if (elevationParam) {
           const dataIndex = elevationParam.dataIndex
-          const paceValue = elevationData[dataIndex]?.[2]
+          const pointIndex = elevationData[dataIndex]?.[3]
+          const punctualMetrics = getPunctualMetrics(pointIndex)
+          const paceValue = getPaceAtDistance(elevationParam.value[0])
           result += `<b>Distance:</b> ${elevationParam.value[0].toFixed(2)} km<br/>`
           result += `<b>Elevation:</b> ${elevationParam.value[1].toFixed(0)} m<br/>`
           if (Number.isFinite(paceValue)) {
             result += `<b>Pace:</b> ${formatPace(paceValue)}/km<br/>`
+          }
+          if (Number.isFinite(punctualMetrics.slope)) {
+            result += `<b>Slope:</b> ${punctualMetrics.slope.toFixed(1)}%<br/>`
           }
         }
 

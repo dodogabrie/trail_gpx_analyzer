@@ -1,10 +1,10 @@
 <template>
-  <div class="text-center py-12">
-    <h2 class="text-2xl font-bold text-red-600 mb-4">Authentication Failed</h2>
-    <p class="text-gray-600 mb-4">{{ errorMessage }}</p>
+  <div class="card text-center">
+    <h2 class="section-title text-rose-600 mb-4">Authentication Failed</h2>
+    <p class="text-slate-600 mb-4">{{ errorMessage }}</p>
     <router-link
       to="/"
-      class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 inline-block"
+      class="btn btn-primary inline-flex"
     >
       Return to Home
     </router-link>

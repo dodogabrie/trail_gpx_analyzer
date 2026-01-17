@@ -3,7 +3,7 @@
   <div v-if="unreadCount > 0" class="fixed top-4 right-4 z-50">
     <button
       @click="showPanel = !showPanel"
-      class="relative bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-4 py-2 rounded-full shadow-lg transition-all flex items-center gap-2 font-semibold"
+      class="btn btn-signal shadow-lg"
     >
       <span class="text-xl">🏆</span>
       <span>{{ unreadCount }} new achievement{{ unreadCount > 1 ? 's' : '' }}</span>
@@ -13,13 +13,13 @@
     <Transition name="slide-down">
       <div
         v-if="showPanel"
-        class="absolute top-14 right-0 w-96 max-h-[500px] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200"
+        class="absolute top-14 right-0 w-96 max-h-[500px] overflow-y-auto rounded-2xl border border-white/70 bg-white/90 shadow-xl"
       >
-        <div class="sticky top-0 bg-gradient-to-r from-yellow-400 to-yellow-500 p-4 flex items-center justify-between">
-          <h3 class="font-bold text-yellow-900">New Achievements</h3>
+        <div class="sticky top-0 bg-gradient-to-r from-amber-300 to-orange-400 p-4 flex items-center justify-between">
+          <h3 class="font-bold text-slate-900">New Achievements</h3>
           <button
             @click="markAllAsRead"
-            class="text-xs text-yellow-900 hover:text-yellow-800 underline"
+            class="text-xs text-slate-900 hover:text-slate-700 underline"
           >
             Mark all read
           </button>
@@ -29,15 +29,15 @@
           <div
             v-for="achievement in visibleAchievements"
             :key="achievement.id"
-            class="p-3 bg-yellow-50 border border-yellow-200 rounded hover:bg-yellow-100 transition-colors cursor-pointer"
+            class="p-3 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
             @click="markAsRead(achievement.id)"
           >
             <div class="flex items-start gap-3">
               <div class="text-3xl">{{ achievement.icon }} {{ achievement.category_icon }}</div>
               <div class="flex-1 min-w-0">
-                <h4 class="font-bold text-gray-900 text-sm">{{ achievement.name }}</h4>
-                <p class="text-xs text-gray-600 mt-1">{{ achievement.description }}</p>
-                <p class="text-xs text-gray-400 mt-1">{{ formatDate(achievement.earned_at) }}</p>
+                <h4 class="font-bold text-slate-900 text-sm">{{ achievement.name }}</h4>
+                <p class="text-xs text-slate-600 mt-1">{{ achievement.description }}</p>
+                <p class="text-xs text-slate-400 mt-1">{{ formatDate(achievement.earned_at) }}</p>
               </div>
             </div>
           </div>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import api from '../services/api'
 
 const visibleAchievements = ref([])
@@ -114,7 +114,6 @@ onMounted(() => {
   pollInterval.value = setInterval(fetchNewAchievements, 60000)
 })
 
-import { onUnmounted, computed } from 'vue'
 onUnmounted(() => {
   if (pollInterval.value) {
     clearInterval(pollInterval.value)

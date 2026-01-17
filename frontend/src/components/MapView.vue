@@ -36,14 +36,6 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  predictionSegments: {
-    type: Array,
-    default: null
-  },
-  flatPace: {
-    type: Number,
-    default: null
-  },
   annotations: {
     type: Array,
     default: () => []
@@ -96,66 +88,19 @@ const initMap = () => {
   })
 }
 
-const getPaceColor = (pace, flatPace) => {
-  if (!flatPace) return 'blue'
-  const ratio = pace / flatPace
-  
-  if (ratio < 0.9) return '#22c55e' // Green (Fast/Downhill)
-  if (ratio < 1.1) return '#3b82f6' // Blue (Flat/Normal)
-  if (ratio < 1.4) return '#eab308' // Yellow (Moderate Climb)
-  return '#ef4444' // Red (Steep Climb)
-}
-
 const drawRoute = (points) => {
   if (!map) return
 
   routeLayer.clearLayers()
 
-  if (props.predictionSegments && props.flatPace) {
-    // Draw colored segments
-    let currentIndex = 0
-    
-    props.predictionSegments.forEach(seg => {
-      const endDist = seg.end_km * 1000
-      
-      // Find end index for this segment
-      let endIndex = currentIndex
-      while (endIndex < points.length && points[endIndex].distance <= endDist) {
-        endIndex++
-      }
-      // Include one extra point to connect segments
-      const segmentPoints = points.slice(currentIndex, Math.min(endIndex + 1, points.length))
-      
-      if (segmentPoints.length > 1) {
-        const latLngs = segmentPoints.map(p => [p.lat, p.lon])
-        const color = getPaceColor(seg.avg_pace_min_per_km, props.flatPace)
-        
-        L.polyline(latLngs, {
-          color: color,
-          weight: 4,
-          opacity: 0.8
-        }).bindPopup(`
-          <b>Segment Info</b><br>
-          Grade: ${seg.avg_grade_percent.toFixed(1)}%<br>
-          Pace: ${seg.avg_pace_min_per_km.toFixed(2)} min/km<br>
-          Time: ${seg.time_formatted}
-        `).addTo(routeLayer)
-      }
-      
-      currentIndex = endIndex
-    })
-  } else {
-    // Default blue line
-    const latLngs = points.map(p => [p.lat, p.lon])
-    L.polyline(latLngs, {
-      color: 'blue',
-      weight: 3,
-      opacity: 0.7
-    }).addTo(routeLayer)
-  }
+  const latLngs = points.map(p => [p.lat, p.lon])
+  L.polyline(latLngs, {
+    color: '#0f172a',
+    weight: 5,
+    opacity: 0.9
+  }).addTo(routeLayer)
 
   // Fit bounds
-  const latLngs = points.map(p => [p.lat, p.lon])
   if (latLngs.length > 0) {
     map.fitBounds(L.polyline(latLngs).getBounds())
   }
