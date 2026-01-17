@@ -4,7 +4,7 @@ from services.strava_service import StravaService
 from services.cache_service import CacheService
 from models import User, GPXFile, StravaActivity, Prediction
 from database import db
-from api.auth import verify_jwt
+from api.utils import get_current_user
 
 bp = Blueprint('physics', __name__, url_prefix='/api/physics')
 
@@ -25,20 +25,6 @@ def get_strava_service():
 
 def get_cache_service():
     return CacheService()
-
-def get_current_user():
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        # Dev fallback
-        if current_app.debug:
-            user = User.query.first()
-            if user: return user
-        return None
-        
-    token = auth_header.split(' ')[1]
-    user_id = verify_jwt(token)
-    if not user_id: return None
-    return User.query.get(user_id)
 
 @bp.route('/calibrate', methods=['POST'])
 def calibrate():

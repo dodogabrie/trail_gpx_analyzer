@@ -1,4 +1,5 @@
-"""Parameter learning service for Tier 2 predictions.
+"""
+Parameter learning service for Tier 2 predictions.
 
 Learns personalized physics model parameters from user's activity history.
 Uses optimization to fit parameters that minimize prediction error.

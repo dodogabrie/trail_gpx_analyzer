@@ -6,33 +6,13 @@ from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from models import GPXFile, User
 from database import db
-from api.auth import verify_jwt
+from api.utils import get_current_user
 from services.gpx_parser import parse_gpx_file
 from services.data_processor import process_gpx_data
 import os
 import uuid
 
 bp = Blueprint('gpx', __name__, url_prefix='/api/gpx')
-
-def get_current_user():
-    """Get current user from JWT token."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        # TEMPORARY: Get or create default user for testing
-        user = User.query.first()
-        if not user:
-            user = User(strava_user_id=999999, strava_username='test_user')
-            db.session.add(user)
-            db.session.commit()
-        return user
-
-    token = auth_header.split(' ')[1]
-    user_id = verify_jwt(token)
-
-    if not user_id:
-        return None
-
-    return User.query.get(user_id)
 
 @bp.route('/upload', methods=['POST'])
 def upload_gpx():

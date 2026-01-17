@@ -5,25 +5,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Blueprint, request, jsonify, current_app
 from models import User, StravaActivity
 from database import db
-from api.auth import verify_jwt
+from api.utils import get_current_user
 from services.strava_service import StravaService
 from cryptography.fernet import InvalidToken
 
 bp = Blueprint('strava', __name__, url_prefix='/api/strava')
-
-def get_current_user():
-    """Get current user from JWT token."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return None
-
-    token = auth_header.split(' ')[1]
-    user_id = verify_jwt(token)
-
-    if not user_id:
-        return None
-
-    return User.query.get(user_id)
 
 def get_strava_service():
     """Get configured Strava service instance."""

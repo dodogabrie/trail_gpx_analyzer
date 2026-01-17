@@ -13,8 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flask import Blueprint, request, jsonify, current_app, send_file
 from models import User, GPXFile, StravaActivity, StravaActivityCache, Prediction
 from database import db
-from api.auth import verify_jwt
-from services.prediction_service import PredictionService
+from api.utils import get_current_user
 from services.strava_service import StravaService
 from services.cache_service import CacheService
 from datetime import datetime, timedelta, timezone
@@ -24,16 +23,7 @@ import requests
 bp = Blueprint('prediction', __name__, url_prefix='/api/prediction')
 
 # Initialize services (singletons)
-prediction_service = None
 cache_service = None
-
-
-def get_prediction_service():
-    """Get or create prediction service instance."""
-    global prediction_service
-    if prediction_service is None:
-        prediction_service = PredictionService()
-    return prediction_service
 
 
 def get_cache_service():
@@ -42,27 +32,6 @@ def get_cache_service():
     if cache_service is None:
         cache_service = CacheService()
     return cache_service
-
-
-def get_current_user():
-    """Get current user from JWT token."""
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        # Fallback to default user for testing
-        user = User.query.first()
-        if not user:
-            user = User(strava_user_id=999999, strava_username='test_user')
-            db.session.add(user)
-            db.session.commit()
-        return user
-
-    token = auth_header.split(' ')[1]
-    user_id = verify_jwt(token)
-
-    if not user_id:
-        return None
-
-    return User.query.get(user_id)
 
 
 def get_strava_service():

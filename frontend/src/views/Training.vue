@@ -209,33 +209,6 @@
           </button>
         </div>
 
-        <!-- Download Button -->
-        <div v-if="selectedIds.length > 0" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <div class="flex items-center justify-between">
-            <span class="font-medium">{{ selectedIds.length }} activities selected</span>
-            <button
-              @click="batchDownload"
-              :disabled="downloading"
-              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <span v-if="downloading" class="animate-spin">⏳</span>
-              <span v-else>⬇</span>
-              {{ downloading ? 'Downloading...' : 'Download Selected' }}
-            </button>
-          </div>
-          <div v-if="downloadProgress" class="mt-3">
-            <div class="text-sm text-gray-600 mb-1">
-              {{ downloadProgress.success.length + downloadProgress.failed.length + downloadProgress.skipped.length }} / {{ selectedIds.length }}
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div
-                class="bg-blue-600 h-2 rounded-full transition-all"
-                :style="{ width: ((downloadProgress.success.length + downloadProgress.failed.length + downloadProgress.skipped.length) / selectedIds.length * 100) + '%' }"
-              ></div>
-            </div>
-          </div>
-        </div>
-
         <!-- Activity List -->
         <div class="max-h-96 overflow-y-auto border rounded-lg">
           <table class="w-full">
@@ -325,9 +298,6 @@ const trainingActivities = ref([])
 const loadingTrainingActivities = ref(false)
 const trainingActivityStats = ref({ total: 0, included_count: 0, excluded_count: 0 })
 const selectedIds = ref([])
-const downloading = ref(false)
-const downloadProgress = ref(null)
-const downloadResults = ref(null)
 const loadingActivities = ref(false)
 const sortColumn = ref('combo_score')
 const sortDirection = ref('desc')
@@ -573,39 +543,6 @@ const toggleAll = (event) => {
     selectedIds.value = sortedActivities.value.map(a => a.strava_id)
   } else {
     selectedIds.value = []
-  }
-}
-
-const batchDownload = async () => {
-  if (selectedIds.value.length === 0) return
-
-  downloading.value = true
-  downloadProgress.value = { success: [], failed: [], skipped: [] }
-  downloadResults.value = null
-
-  try {
-    const response = await api.post('/strava/activities/batch-download', {
-      activity_ids: selectedIds.value
-    })
-
-    downloadResults.value = response.data.results
-    tierStatus.value = response.data.tier_status
-
-    // Refresh activity lists
-    await Promise.all([
-      fetchStravaActivities(),
-      fetchTrainingActivities()
-    ])
-
-    // Clear selection
-    selectedIds.value = []
-
-  } catch (error) {
-    console.error('Batch download failed:', error)
-    alert('Batch download failed: ' + (error.response?.data?.error || error.message))
-  } finally {
-    downloading.value = false
-    downloadProgress.value = null
   }
 }
 </script>

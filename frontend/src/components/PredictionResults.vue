@@ -174,12 +174,13 @@
             @input="regroupSegments"
             type="range"
             min="1"
-            max="5"
+            :max="maxValidLevel"
             step="1"
             class="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
           />
           <span class="text-sm text-gray-500">More</span>
           <span class="text-lg font-bold text-blue-600">{{ localSplitLevel }}</span>
+          <span v-if="maxValidLevel < 5" class="text-xs text-gray-500">(max {{ maxValidLevel }})</span>
         </div>
       </div>
 
@@ -187,6 +188,7 @@
         v-if="gpxStore.points.length"
         :points="gpxStore.points"
         :segments="displaySegments"
+        :raw-segments="rawSegments"
         :average-pace="prediction.statistics.flat_pace_min_per_km"
         :annotations="predictionStore.annotations"
         :selected-range="selectedRange"
@@ -332,13 +334,53 @@ const emit = defineEmits(['recalibrate'])
 const showSegments = ref(false)
 const localSplitLevel = ref(predictionStore.splitLevel)
 const displaySegments = ref([])
+const rawSegments = ref([])
 const showAnnotationModal = ref(false)
 const pendingAnnotationDistance = ref(0)
 const pendingAnnotationPredictedTime = ref(null)
 const selectedRange = ref(null)
 const selectedRangeTime = ref(null)
+const cachedSegmentsByLevel = ref({}) // Cache for all 5 levels
+const maxValidLevel = ref(5) // Highest level that doesn't exceed MAX_SEGMENTS
 
 // Group segments by gradient changes
+const getSplitGrade = (segment) => {
+  if (typeof segment._smoothed_grade === 'number') return segment._smoothed_grade
+  return segment.grade
+}
+
+const smoothSegmentGrades = (segments, windowMeters) => {
+  if (!segments || segments.length === 0) return []
+
+  const halfWindow = windowMeters / 2
+  const centers = segments.map(seg => seg.distance_m + seg.length_m / 2)
+
+  return segments.map((seg, index) => {
+    const center = centers[index]
+    const windowStart = center - halfWindow
+    const windowEnd = center + halfWindow
+
+    let weightedSum = 0
+    let weightTotal = 0
+
+    for (let i = 0; i < segments.length; i++) {
+      const segCenter = centers[i]
+      if (segCenter < windowStart || segCenter > windowEnd) continue
+
+      const weight = segments[i].length_m || 0
+      weightedSum += (segments[i].grade * weight)
+      weightTotal += weight
+    }
+
+    const smoothedGrade = weightTotal > 0 ? weightedSum / weightTotal : seg.grade
+
+    return {
+      ...seg,
+      _smoothed_grade: smoothedGrade
+    }
+  })
+}
+
 const groupSegmentsByGradient = (segments, gradientThreshold, maxSegmentLength, signChangeMinGrade) => {
   if (!segments || segments.length === 0) return []
 
@@ -350,8 +392,8 @@ const groupSegmentsByGradient = (segments, gradientThreshold, maxSegmentLength, 
     const prev = segments[i - 1]
     const curr = segments[i]
 
-    const prevGrade = prev.grade * 100
-    const currGrade = curr.grade * 100
+    const prevGrade = getSplitGrade(prev) * 100
+    const currGrade = getSplitGrade(curr) * 100
 
     const gradeChange = Math.abs(currGrade - prevGrade)
     const signChange = (prevGrade * currGrade < 0) &&
@@ -428,32 +470,82 @@ const formatGroupedSegments = (segmentGroups) => {
   return mlSegments
 }
 
-// Regroup segments based on split level
-const regroupSegments = () => {
-  const rawSegments = props.prediction.raw_segments
-  if (!rawSegments || rawSegments.length === 0) {
-    displaySegments.value = props.prediction.segments
-    return
-  }
+// Thresholds configuration
+const thresholds = {
+  1: { gradient: 20.0, signChange: 20.0, maxLength: 20000, smoothWindow: 800 }, // Very coarse
+  2: { gradient: 12.0, signChange: 12.0, maxLength: 15000, smoothWindow: 500 },  // Coarse
+  3: { gradient: 6.0, signChange: 6.0, maxLength: 10000, smoothWindow: 300 },    // Medium
+  4: { gradient: 3.0, signChange: 3.0, maxLength: 6000, smoothWindow: 200 },     // Fine
+  5: { gradient: 1.0, signChange: 1.0, maxLength: 3000, smoothWindow: 150 }      // Very fine
+}
 
-  // Scale: 1=very coarse (less detail), 5=very fine (max detail)
-  const thresholds = {
-    1: { gradient: 20.0, signChange: 20.0, maxLength: 20000 }, // Very coarse (minimal segments)
-    2: { gradient: 12.0, signChange: 12.0, maxLength: 15000 }, // Coarse
-    3: { gradient: 6.0, signChange: 6.0, maxLength: 10000 },   // Medium
-    4: { gradient: 3.0, signChange: 3.0, maxLength: 6000 },    // Fine
-    5: { gradient: 1.0, signChange: 1.0, maxLength: 3000 }     // Very fine (max detail)
-  }
+const MAX_SEGMENTS = 200
 
-  const config = thresholds[localSplitLevel.value] || thresholds[3]
+// Compute segments for a specific level
+const computeSegmentsForLevel = (rawSegmentsData, level) => {
+  const config = thresholds[level] || thresholds[3]
+  const smoothedSegments = smoothSegmentGrades(rawSegmentsData, config.smoothWindow)
   const segmentGroups = groupSegmentsByGradient(
-    rawSegments,
+    smoothedSegments,
     config.gradient,
     config.maxLength,
     config.signChange
   )
+  return formatGroupedSegments(segmentGroups)
+}
 
-  displaySegments.value = formatGroupedSegments(segmentGroups)
+// Precompute all levels and cache them
+const precomputeAllLevels = () => {
+  const rawSegmentsData = props.prediction.raw_segments
+  if (!rawSegmentsData || rawSegmentsData.length === 0) {
+    displaySegments.value = props.prediction.segments
+    rawSegments.value = []
+    return
+  }
+
+  rawSegments.value = rawSegmentsData
+  console.log('Precomputing all segment levels...')
+
+  // Compute all 5 levels and track max valid level
+  let highestValid = 1
+  for (let level = 1; level <= 5; level++) {
+    const segments = computeSegmentsForLevel(rawSegmentsData, level)
+    cachedSegmentsByLevel.value[level] = segments
+    console.log(`Level ${level}: ${segments.length} segments`)
+
+    if (segments.length <= MAX_SEGMENTS) {
+      highestValid = level
+    }
+  }
+
+  maxValidLevel.value = highestValid
+  console.log(`Max valid level: ${highestValid}`)
+
+  // Clamp initial level to max valid
+  if (localSplitLevel.value > maxValidLevel.value) {
+    localSplitLevel.value = maxValidLevel.value
+  }
+
+  // Set initial display
+  regroupSegments()
+}
+
+// Regroup segments based on split level (now just switches cached versions)
+const regroupSegments = () => {
+  const rawSegmentsData = props.prediction.raw_segments
+  if (!rawSegmentsData || rawSegmentsData.length === 0) {
+    displaySegments.value = props.prediction.segments
+    return
+  }
+
+  // Simply use cached segments for current level (already validated to be <= MAX_SEGMENTS)
+  const cached = cachedSegmentsByLevel.value[localSplitLevel.value]
+  if (cached) {
+    displaySegments.value = cached
+  } else {
+    // Fallback to level 1
+    displaySegments.value = cachedSegmentsByLevel.value[1] || []
+  }
 }
 
 const handleChartClick = ({ distanceKm }) => {
@@ -565,7 +657,7 @@ const saveAnnotationsToServer = async () => {
 }
 
 onMounted(() => {
-  regroupSegments()
+  precomputeAllLevels()
 
   if (props.prediction.prediction_id) {
     predictionStore.loadAnnotations(props.prediction.prediction_id)
