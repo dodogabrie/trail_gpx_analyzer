@@ -1,0 +1,210 @@
+{
+  "common": {
+    "version": "Version 0.0.1 (Beta)",
+    "loading": "Loading...",
+    "buttons": {
+      "connect_strava": "Connect Strava",
+      "logout": "Logout",
+      "plan": "Plan",
+      "create_plan": "Create Race Plan",
+      "how_it_works": "How It Works",
+      "about": "About"
+    }
+  },
+  "home": {
+    "hero": {
+      "title_line1": "Master Your",
+      "title_line2": "Race Strategy.",
+      "subtitle": "Physics-based performance modeling for ultra-endurance athletes. Calibrated to your unique physiology.",
+      "stats": "{count} races planned this month."
+    },
+    "features": {
+      "title": "Precision Engineering for Trail Running",
+      "subtitle": "Most calculators just use average pace. We model the physics of every step.",
+      "biometric": {
+        "title": "Biometric Calibration",
+        "desc": "We analyze your Strava history to extract your unique power-duration curve. The model knows exactly when you fade."
+      },
+      "terrain": {
+        "title": "Terrain Physics",
+        "desc": "A 15% grade on technical rock is slower than 15% on fire road. We account for surface efficiency and technicality."
+      },
+      "pacing": {
+        "title": "Realistic Pacing",
+        "desc": "Get a segment-by-segment plan. Know exactly where you should be at hour 10, not just hour 1."
+      }
+    },
+    "disclaimer": {
+      "badge": "Disclaimer",
+      "title": "Not a Crystal Ball.",
+      "text": "This is a planning instrument. The output assumes optimal execution and conditions. Weather, nutrition failures, and injury are variables you must manage on race day. We provide the strategy; you provide the execution."
+    }
+  },
+  "predict": {
+    "title": "New Simulation",
+    "upload_card": {
+      "title": "Upload Route",
+      "drop_text": "Drop GPX file here",
+      "processing_text": "Processing Trace...",
+      "browse_text": "or click to browse your filesystem"
+    },
+    "instructions": {
+      "title": "How it works",
+      "step1": {
+        "title": "Upload Route",
+        "desc": "Upload any standard GPX file. We analyze elevation, gradient, and distance."
+      },
+      "step2": {
+        "title": "Physics Simulation",
+        "desc": "We apply your calibrated parameters (from Strava) to the route's specific terrain profile."
+      },
+      "step3": {
+        "title": "Execution Plan",
+        "desc": "Get a detailed segment-by-segment pacing strategy and estimated finish time."
+      }
+    },
+    "auth_required": {
+      "title": "Authentication Required",
+      "text": "To generate personalized predictions, we need to access your Strava history.",
+      "button": "Connect Strava Profile"
+    },
+    "recent": {
+      "title": "Recent Simulations",
+      "loading": "Loading history...",
+      "empty": "No recent simulations found."
+    }
+  },
+  "auth_error": {
+    "title": "Authentication Failed",
+    "default_message": "An error occurred during authentication.",
+    "no_code": "No authorization code was received from Strava.",
+    "exchange_failed": "Failed to exchange authorization code for access token.",
+    "generic": "Error: {error}",
+    "cta": "Return to Home"
+  },
+  "auth_success": {
+    "title": "Authentication Successful!",
+    "subtitle": "You are connected to Strava. We are building your prediction model now.",
+    "note": "This can take a few minutes depending on your activity history.",
+    "status_label": "Status",
+    "preparing": "Preparing sync...",
+    "activities_downloaded": "{downloaded} / {total} activities downloaded",
+    "completed": "Sync complete. Redirecting to home...",
+    "failed": "Sync failed. You can still continue, but predictions may be limited.",
+    "fetch_error": "Failed to fetch sync status",
+    "cta_home": "Continue to Home",
+    "cta_refresh": "Refresh Status",
+    "cta_refreshing": "Checking...",
+    "status_initializing": "Initializing"
+  },
+  "results": {
+    "title": "Predicted Time",
+    "confidence_interval": "Confidence interval",
+    "km": "km",
+    "m_gain": "m gain",
+    "flat_pace": "flat pace",
+    "buttons": {
+      "export_vp": "Export Virtual Partner (GPX)",
+      "save_annotations": "Save Changes"
+    },
+    "annotations_title": "Annotations & Selections",
+    "add_annotation": "Add annotation",
+    "add_annotation_at": "Add annotation at {distance} km",
+    "edit_annotation": "Edit",
+    "selected_range": "Selected Range",
+    "time": "Time",
+    "elevation_pace_title": "Elevation & Pace Profile",
+    "interactive_analysis": "Interactive Analysis",
+    "granularity": "Granularity",
+    "reset_zoom": "Reset Zoom",
+    "similar_activities": "Similar Past Activities",
+    "actual_time": "actual",
+    "click_to_add": "Click on the elevation profile below to add aid stations or markers."
+  },
+  "prediction": {
+    "title": "Route Time Prediction",
+    "subtitle": "Predict your time for",
+    "effort": "Effort",
+    "efforts": {
+      "race": "🏁 Race",
+      "training": "🏃 Training",
+      "recovery": "🚶 Recovery"
+    },
+    "effort_descriptions": {
+      "race": "Aggressive pace - race effort",
+      "training": "Realistic pace - normal effort",
+      "recovery": "Easy pace - recovery effort"
+    },
+    "retry": "Retry prediction",
+    "loading": {
+      "title": "Generating prediction...",
+      "subtitle": "Analyzing route segments with the trained model",
+      "step1": "Converting GPX to route profile",
+      "step2": "Running hybrid prediction",
+      "step3": "Calculating segment breakdown",
+      "wait": "This may take 5-30 seconds depending on route complexity"
+    },
+    "empty": "No prediction yet. Click retry to start.",
+    "back_home": "← Back to Home",
+    "tiers": {
+      "TIER_1_PHYSICS": "Physics Baseline",
+      "TIER_2_PARAMETER_LEARNING": "Personalized Physics",
+      "TIER_3_RESIDUAL_ML": "ML Enhanced"
+    },
+    "descriptions": {
+      "TIER_1_PHYSICS": "Physics model with default parameters (based on {count} activities)",
+      "TIER_2_PARAMETER_LEARNING": "Physics model with personalized parameters learned from your {count} activities",
+      "TIER_3_RESIDUAL_ML": "Physics model with ML corrections trained on your {count} activities"
+    }
+  },
+  "app": {
+    "athlete": "Athlete",
+    "methodology": "Methodology",
+    "privacy": "Privacy",
+    "copyright": "© 2026 GPX Analyzer. Built for the mountains."
+  },
+  "nav": {
+    "back_home": "← Back to Home",
+    "about": "Who I Am",
+    "methodology": "Methodology",
+    "plan": "Plan"
+  },
+  "privacy": {
+    "badge": "Privacy",
+    "title": "Privacy and Data",
+    "body1": "GPX Analyzer uses your Strava data only to build your performance model and improve prediction accuracy. I do not sell or share your personal data with third parties.",
+    "body2": "You can disconnect Strava at any time. If you request data removal, I will delete your stored profile and simulations.",
+    "body3": "This product is in beta. If you have questions about data handling, contact me and I will reply directly.",
+    "contact_link": "Contact me from the Who I am page"
+  },
+  "howitworks": {
+    "badge": "How it works",
+    "title": "How GPX Analyzer Works",
+    "subtitle": "A physics-first model, refined with your data to reflect how you really run on trails.",
+    "physics": {
+      "title": "Physics model",
+      "text": "We simulate effort over the route using elevation, gradient, distance, and terrain assumptions. This gives a baseline that respects the mechanics of climbing, descending, and fatigue."
+    },
+    "ml": {
+      "title": "ML corrections",
+      "text": "Your Strava history is used to calibrate the model and correct it where your real-world performance differs from the baseline."
+    },
+    "output": {
+      "title": "Practical race plan",
+      "text": "The result is a segment-by-segment pacing strategy and finish-time estimate you can actually execute on race day."
+    }
+  },
+  "about": {
+    "badge": "Who I am",
+    "title": "Edoardo Gabrielli",
+    "subtitle": "Trail runner, physics and software developer.",
+    "body1": "I'm an amateur trail runner and a software developer with a physics background. In this project I apply modeling and data analysis to turn GPX tracks into actionable race-planning guidance.",
+    "body2": "I developed GPX Analyzer to solve the gaps I felt in race planning, and now I share it with the community.",
+    "image_alt": "Portrait of Edoardo Gabrielli",
+    "personal_title": "Built from my own training, refined for yours.",
+    "personal_text": "It began as a personal tool for long mountain days, then evolved into something other athletes could use with the same honesty and precision.",
+    "contact_label": "Contact",
+    "contact_email": "dodogabrie97@live.it",
+    "contact_strava": "Strava"
+  }
+}

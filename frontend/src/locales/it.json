@@ -1,0 +1,210 @@
+{
+  "common": {
+    "version": "Versione 0.0.1 (Beta)",
+    "loading": "Caricamento...",
+    "buttons": {
+      "connect_strava": "Collega Strava",
+      "logout": "Esci",
+      "plan": "Pianifica",
+      "create_plan": "Crea piano gara",
+      "how_it_works": "Come funziona",
+      "about": "Scopri"
+    }
+  },
+  "home": {
+    "hero": {
+      "title_line1": "Padroneggia",
+      "title_line2": "la tua strategia di gara.",
+      "subtitle": "Un modello fisico che stima l'andatura su trail in base al profilo del percorso. Si adatta ai tuoi dati per riflettere come corri davvero.",
+      "stats": "{count} gare pianificate questo mese."
+    },
+    "features": {
+      "title": "Analisi del passo specifica per il trail running",
+      "subtitle": "La maggior parte dei calcolatori usa solo il passo medio. Noi modelliamo la fisica di ogni passo.",
+      "biometric": {
+        "title": "Calibrazione biometrica",
+        "desc": "Analizziamo la tua cronologia su Strava per capire come ti adatti a pendenza e fatica. Il modello si calibra sul tuo modo di correre."
+      },
+      "terrain": {
+        "title": "Fisica del terreno",
+        "desc": "Le discese troppo ripide non sono sempre piu' veloci di quelle moderate. Lo modelliamo con i tuoi dati e con il modo in cui affronti i trail."
+      },
+      "pacing": {
+        "title": "Pacing realistico",
+        "desc": "Ottieni un piano segmento per segmento, con punti di passaggio personalizzati su di te. Sai dove dovresti essere alla decima ora, non solo alla prima."
+      }
+    },
+    "disclaimer": {
+      "badge": "Avvertenza",
+      "title": "Non e' una sfera di cristallo.",
+      "text": "E' uno strumento di pianificazione. L'output assume esecuzione e condizioni ottimali. Meteo, nutrizione e infortuni sono variabili da gestire il giorno gara. Noi forniamo la strategia; tu l'esecuzione."
+    }
+  },
+  "predict": {
+    "title": "Nuova simulazione",
+    "upload_card": {
+      "title": "Carica percorso",
+      "drop_text": "Trascina il file GPX qui",
+      "processing_text": "Elaborazione traccia...",
+      "browse_text": "o clicca per sfogliare i file"
+    },
+    "instructions": {
+      "title": "Come funziona",
+      "step1": {
+        "title": "Carica percorso",
+        "desc": "Carica un file GPX standard. Analizziamo elevazione, pendenza e distanza."
+      },
+      "step2": {
+        "title": "Simulazione fisica",
+        "desc": "Applichiamo i parametri calibrati (da Strava) al profilo specifico del terreno."
+      },
+      "step3": {
+        "title": "Piano di esecuzione",
+        "desc": "Ottieni una strategia di passo dettagliata segmento per segmento e il tempo stimato."
+      }
+    },
+    "auth_required": {
+      "title": "Autenticazione richiesta",
+      "text": "Per generare previsioni personalizzate dobbiamo accedere alla tua cronologia Strava.",
+      "button": "Collega profilo Strava"
+    },
+    "recent": {
+      "title": "Simulazioni recenti",
+      "loading": "Caricamento cronologia...",
+      "empty": "Nessuna simulazione recente trovata."
+    }
+  },
+  "auth_error": {
+    "title": "Autenticazione fallita",
+    "default_message": "Si e' verificato un errore durante l'autenticazione.",
+    "no_code": "Nessun codice di autorizzazione ricevuto da Strava.",
+    "exchange_failed": "Impossibile scambiare il codice di autorizzazione per un token di accesso.",
+    "generic": "Errore: {error}",
+    "cta": "Torna alla home"
+  },
+  "auth_success": {
+    "title": "Autenticazione completata!",
+    "subtitle": "Sei collegato a Strava. Stiamo costruendo il tuo modello di previsione.",
+    "note": "L'operazione puo' richiedere alcuni minuti in base alla tua cronologia di attivita'.",
+    "status_label": "Stato",
+    "preparing": "Preparazione sincronizzazione...",
+    "activities_downloaded": "{downloaded} / {total} attivita' scaricate",
+    "completed": "Sincronizzazione completata. Reindirizzamento alla home...",
+    "failed": "Sincronizzazione fallita. Puoi continuare, ma le previsioni potrebbero essere limitate.",
+    "fetch_error": "Impossibile recuperare lo stato della sincronizzazione",
+    "cta_home": "Continua alla home",
+    "cta_refresh": "Aggiorna stato",
+    "cta_refreshing": "Controllo...",
+    "status_initializing": "Inizializzazione"
+  },
+  "results": {
+    "title": "Tempo previsto",
+    "confidence_interval": "Intervallo di confidenza",
+    "km": "km",
+    "m_gain": "m D+",
+    "flat_pace": "passo in piano",
+    "buttons": {
+      "export_vp": "Esporta Virtual Partner (GPX)",
+      "save_annotations": "Salva modifiche"
+    },
+    "annotations_title": "Annotazioni e selezioni",
+    "add_annotation": "Aggiungi annotazione",
+    "add_annotation_at": "Aggiungi annotazione a {distance} km",
+    "edit_annotation": "Modifica",
+    "selected_range": "Intervallo selezionato",
+    "time": "Tempo",
+    "elevation_pace_title": "Profilo elevazione e passo",
+    "interactive_analysis": "Analisi interattiva",
+    "granularity": "Dettaglio",
+    "reset_zoom": "Reimposta zoom",
+    "similar_activities": "Attivita' simili",
+    "actual_time": "reale",
+    "click_to_add": "Clicca sul profilo altimetrico qui sotto per aggiungere punti di ristoro o marker."
+  },
+  "prediction": {
+    "title": "Previsione tempo gara",
+    "subtitle": "Prevedi il tuo tempo per",
+    "effort": "Sforzo",
+    "efforts": {
+      "race": "🏁 Gara",
+      "training": "🏃 Allenamento",
+      "recovery": "🚶 Recupero"
+    },
+    "effort_descriptions": {
+      "race": "Passo aggressivo - sforzo gara",
+      "training": "Passo realistico - sforzo normale",
+      "recovery": "Passo facile - sforzo di recupero"
+    },
+    "retry": "Riprova previsione",
+    "loading": {
+      "title": "Generazione previsione...",
+      "subtitle": "Analisi dei segmenti del percorso con il modello addestrato",
+      "step1": "Conversione GPX in profilo del percorso",
+      "step2": "Esecuzione previsione ibrida",
+      "step3": "Calcolo della suddivisione in segmenti",
+      "wait": "Puo' richiedere 5-30 secondi a seconda della complessita' del percorso"
+    },
+    "empty": "Nessuna previsione. Clicca su riprova per iniziare.",
+    "back_home": "<- Torna alla home",
+    "tiers": {
+      "TIER_1_PHYSICS": "Fisica Base",
+      "TIER_2_PARAMETER_LEARNING": "Fisica Personalizzata",
+      "TIER_3_RESIDUAL_ML": "ML Avanzato"
+    },
+    "descriptions": {
+      "TIER_1_PHYSICS": "Modello fisico con parametri predefiniti (basato su {count} attività)",
+      "TIER_2_PARAMETER_LEARNING": "Modello fisico con parametri personalizzati appresi dalle tue {count} attività",
+      "TIER_3_RESIDUAL_ML": "Modello fisico con correzioni ML addestrato sulle tue {count} attività"
+    }
+  },
+  "app": {
+    "athlete": "Atleta",
+    "methodology": "Metodologia",
+    "privacy": "Privacy",
+    "copyright": "(C) 2026 GPX Analyzer. Costruito per le montagne."
+  },
+  "nav": {
+    "about": "Chi sono",
+    "back_home": "<- Torna alla home",
+    "methodology": "Metodologia",
+    "plan": "Pianifica"
+  },
+  "privacy": {
+    "badge": "Privacy",
+    "title": "Privacy e dati",
+    "body1": "GPX Analyzer usa i dati Strava solo per costruire il tuo modello di performance e migliorare la precisione delle previsioni. Non vendo e non condivido i tuoi dati personali con terze parti.",
+    "body2": "Puoi scollegare Strava in qualsiasi momento. Se richiedi la rimozione dei dati, eliminerò il tuo profilo e le simulazioni salvate.",
+    "body3": "Questo prodotto è in beta. Se hai domande sulla gestione dei dati, scrivimi e risponderò direttamente.",
+    "contact_link": "Contattami dalla pagina Chi sono"
+  },
+  "howitworks": {
+    "badge": "Come funziona",
+    "title": "Come funziona GPX Analyzer",
+    "subtitle": "Un modello fisico alla base, rifinito con i tuoi dati per riflettere come corri davvero sul trail.",
+    "physics": {
+      "title": "Modello fisico",
+      "text": "Simuliamo lo sforzo lungo il percorso usando elevazione, pendenza, distanza e ipotesi sul terreno. Questo crea una base coerente con salita, discesa e fatica."
+    },
+    "ml": {
+      "title": "Correzioni ML",
+      "text": "La tua cronologia Strava calibra il modello e lo corregge dove la performance reale si discosta dalla base."
+    },
+    "output": {
+      "title": "Piano di gara pratico",
+      "text": "Il risultato è una strategia di passo segmento per segmento e una stima del tempo finale che puoi davvero eseguire in gara."
+    }
+  },
+  "about": {
+    "badge": "Chi sono",
+    "title": "Edoardo Gabrielli",
+    "subtitle": "Trail runner, sviluppatore software e fisico.",
+    "body1": "Sono un trail runner amatore e uno sviluppatore software con un background nella fisica. In questo progetto applico la modellazione e l'analisi dei dati per trasformare tracce GPX in indicazioni utili per la pianificazione gara.",
+    "body2": "Ho sviluppato GPX Analyzer per colmare i limiti che sentivo nella pianificazione gara, e ora voglio condividerlo con la comunita'.",
+    "image_alt": "Ritratto di Edoardo Gabrielli",
+    "personal_title": "Nato dal mio training, affinato per il tuo.",
+    "personal_text": "E' iniziato come strumento personale per le mie uscite in montagna, poi e' cresciuto per aiutare altri atleti con la stessa onesta' e precisione.",
+    "contact_label": "Contatto",
+    "contact_email": "dodogabrie97@live.it",
+    "contact_strava": "Strava"
+  }
+}

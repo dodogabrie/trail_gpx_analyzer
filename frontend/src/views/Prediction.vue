@@ -1,18 +1,18 @@
 <template>
-  <div class="stack">
+  <div class="stack w-full">
     <AchievementNotification />
 
     <section class="card stack">
       <div>
-        <h1 class="section-title">Route Time Prediction</h1>
+        <h1 class="section-title">{{ $t('prediction.title') }}</h1>
         <p class="section-subtitle">
-        Predict your time for
+        {{ $t('prediction.subtitle') }}
         <strong>{{ gpxStore.currentGpx?.original_filename }}</strong>
         </p>
       </div>
 
       <div class="flex flex-wrap items-center gap-4">
-        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Effort</span>
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{{ $t('prediction.effort') }}</span>
         <div class="segmented">
           <button
             @click="predictionStore.effort = 'race'"
@@ -21,7 +21,7 @@
               predictionStore.effort === 'race' ? 'segment-active' : ''
             ]"
           >
-            🏁 Race
+            {{ $t('prediction.efforts.race') }}
           </button>
           <button
             @click="predictionStore.effort = 'training'"
@@ -30,7 +30,7 @@
               predictionStore.effort === 'training' ? 'segment-active' : ''
             ]"
           >
-            🏃 Training
+            {{ $t('prediction.efforts.training') }}
           </button>
           <button
             @click="predictionStore.effort = 'recovery'"
@@ -39,7 +39,7 @@
               predictionStore.effort === 'recovery' ? 'segment-active' : ''
             ]"
           >
-            🚶 Recovery
+            {{ $t('prediction.efforts.recovery') }}
           </button>
         </div>
         <span class="text-xs text-slate-500">
@@ -54,33 +54,33 @@
         @click="retryPrediction"
         class="btn btn-ghost mt-2"
       >
-        Retry prediction
+        {{ $t('prediction.retry') }}
       </button>
     </div>
 
-    <div class="card">
-      <div v-if="predictionStore.loading" class="text-center py-12">
+    <div>
+      <div v-if="predictionStore.loading" class="card text-center py-12">
         <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-slate-900 mx-auto mb-4"></div>
-        <p class="text-lg font-semibold">Generating prediction...</p>
-        <p class="text-sm text-slate-600 mb-4">Analyzing route segments with the trained model</p>
+        <p class="text-lg font-semibold">{{ $t('prediction.loading.title') }}</p>
+        <p class="text-sm text-slate-600 mb-4">{{ $t('prediction.loading.subtitle') }}</p>
 
         <div class="mt-6 max-w-md mx-auto card card-soft">
           <div class="space-y-2 text-sm text-left">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 bg-lime-400 rounded-full animate-pulse"></div>
-              <span class="text-slate-700">Converting GPX to route profile</span>
+              <span class="text-slate-700">{{ $t('prediction.loading.step1') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 bg-lime-400 rounded-full animate-pulse" style="animation-delay: 0.2s"></div>
-              <span class="text-slate-700">Running hybrid prediction</span>
+              <span class="text-slate-700">{{ $t('prediction.loading.step2') }}</span>
             </div>
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 bg-lime-400 rounded-full animate-pulse" style="animation-delay: 0.4s"></div>
-              <span class="text-slate-700">Calculating segment breakdown</span>
+              <span class="text-slate-700">{{ $t('prediction.loading.step3') }}</span>
             </div>
           </div>
           <div class="mt-4 text-xs text-slate-500 text-center">
-            This may take 5-30 seconds depending on route complexity
+            {{ $t('prediction.loading.wait') }}
           </div>
         </div>
       </div>
@@ -90,17 +90,16 @@
           :prediction="predictionStore.prediction"
           :similar-activities="predictionStore.similarActivities"
           :selected-activity="predictionStore.selectedActivity"
-          @recalibrate="retryPrediction"
         />
       </div>
 
-      <div v-else class="text-center py-12 text-slate-600">
-        <p>No prediction yet. Click retry to start.</p>
+      <div v-else class="card text-center py-12 text-slate-600">
+        <p>{{ $t('prediction.empty') }}</p>
       </div>
     </div>
 
-    <router-link to="/" class="link">
-      ← Back to Home
+    <router-link :to="{ name: 'Home', params: { lang: $route.params.lang } }" class="link">
+      {{ $t('prediction.back_home') }}
     </router-link>
   </div>
 </template>
@@ -108,6 +107,7 @@
 <script setup>
 import { onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useGpxStore } from '../stores/gpx'
 import { usePredictionStore } from '../stores/prediction'
 import { useAuthStore } from '../stores/auth'
@@ -118,16 +118,12 @@ const route = useRoute()
 const gpxStore = useGpxStore()
 const predictionStore = usePredictionStore()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const gpxId = computed(() => parseInt(route.params.gpxId))
 
 const getEffortDescription = (effort) => {
-  const descriptions = {
-    race: 'Aggressive pace - race effort',
-    training: 'Realistic pace - normal effort',
-    recovery: 'Easy pace - recovery effort'
-  }
-  return descriptions[effort] || descriptions.training
+  return t(`prediction.effort_descriptions.${effort}`)
 }
 
 const runPrediction = async () => {

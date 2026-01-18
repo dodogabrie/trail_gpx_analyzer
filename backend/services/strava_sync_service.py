@@ -73,26 +73,32 @@ class StravaSyncService:
                 activities = self._download_all_activities(user, sync_status)
                 logger.info(f"Downloaded {len(activities)} activities for user {user_id}")
 
-                if len(activities) < 5:
+                total_available = StravaActivity.query.filter_by(user_id=user_id).count()
+
+                if len(activities) == 0:
                     sync_status.status = 'completed'
                     sync_status.current_step = None
-                    sync_status.message = f'Found {len(activities)} activities. Need 5+ for personalization.'
+                    if total_available == 0:
+                        sync_status.message = 'Found 0 activities. Need 5+ for personalization.'
+                        logger.info(f"User {user_id} has no activities, skipping training")
+                    else:
+                        sync_status.message = 'No new activities found. Your model is up to date.'
+                        logger.info(f"User {user_id} has no new activities, skipping training")
                     sync_status.completed_at = datetime.utcnow()
                     db.session.commit()
-                    logger.info(f"User {user_id} has only {len(activities)} activities, skipping training")
                     return
 
                 # Step 2: Use downloaded activities for training (already filtered by score)
                 selected_activities = activities
-                logger.info(f"Using {len(selected_activities)} activities for training")
+                logger.info(f"Using {len(selected_activities)} new activities for training refresh")
 
                 # Step 3: Train model based on tier
-                if len(activities) >= 20:
+                if total_available >= 20:
                     sync_status.current_step = 'training_tier3'
                     sync_status.message = 'Training advanced ML model (Tier 3)...'
                     db.session.commit()
                     self._train_tier3_model(user_id, selected_activities)
-                elif len(activities) >= 5:
+                elif total_available >= 5:
                     sync_status.current_step = 'training_tier2'
                     sync_status.message = 'Learning your running parameters (Tier 2)...'
                     db.session.commit()
@@ -101,7 +107,7 @@ class StravaSyncService:
                 # Mark as completed
                 sync_status.status = 'completed'
                 sync_status.current_step = None
-                sync_status.message = f'Model trained with {len(selected_activities)} activities!'
+                sync_status.message = f'Model trained with {total_available} activities!'
                 sync_status.completed_at = datetime.utcnow()
                 db.session.commit()
 
@@ -156,8 +162,14 @@ class StravaSyncService:
                 user.expires_at = expires_at
                 db.session.commit()
 
-            # Get activities from last year
-            after_timestamp = strava_service.get_timestamp_for_last_year()
+            # Get activities since the last stored one (or last year if none)
+            latest_activity = StravaActivity.query.filter_by(user_id=user.id).order_by(
+                StravaActivity.start_date.desc()
+            ).first()
+            if latest_activity:
+                after_timestamp = int(latest_activity.start_date.timestamp()) + 1
+            else:
+                after_timestamp = strava_service.get_timestamp_for_last_year()
             activities_data = strava_service.fetch_activities(access_token, after_timestamp)
 
             # Filter for runs only

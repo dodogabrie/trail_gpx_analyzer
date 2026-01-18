@@ -1,146 +1,45 @@
 <template>
-  <div class="space-y-6">
+  <div class="space-y-8 w-full">
     <!-- Main Prediction Card -->
     <div class="hero-card">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-2xl font-bold">Predicted Time</h3>
+        <h3 class="text-2xl font-bold text-white uppercase tracking-tight">{{ $t('results.title') }}</h3>
+      </div>
 
-        <!-- Hybrid System Badge -->
-        <div v-if="prediction.metadata" class="flex flex-col items-end gap-1">
-          <span class="pill border-white/40 bg-white/20 text-white">
-            {{ formatTier(prediction.metadata.tier) }}
-          </span>
-          <span class="text-xs text-white/70">
-            {{ prediction.metadata.confidence }} confidence
-          </span>
+      <div class="text-center py-4">
+      <div class="text-5xl md:text-6xl font-bold mb-2 font-mono tracking-tight text-slate-900">
+        {{ prediction.total_time_formatted }}
+      </div>
+
+        <div class="text-slate-400 text-sm font-mono">
+          {{ $t('results.confidence_interval') }}: <span class="text-emerald-300">{{ prediction.confidence_interval.lower_formatted }}</span> -
+          <span class="text-emerald-300">{{ prediction.confidence_interval.upper_formatted }}</span>
+        </div>
+
+        <!-- Hybrid System Info (Translated) -->
+        <div v-if="prediction.metadata" class="mt-4 text-slate-500 text-xs max-w-lg mx-auto border-t border-slate-800 pt-3">
+          {{ $t(`prediction.descriptions.${prediction.metadata.tier}`, { count: prediction.metadata.activities_used }) }}
         </div>
       </div>
 
-      <div class="text-center">
-        <div class="text-5xl font-bold mb-2">
-          {{ prediction.total_time_formatted }}
+      <div class="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-200">
+        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div class="text-2xl font-bold font-mono text-emerald-600">{{ prediction.statistics.total_distance_km.toFixed(2) }}</div>
+          <div class="text-slate-500 text-xs uppercase tracking-wider">{{ $t('results.km') }}</div>
         </div>
-
-        <div class="text-white/75 text-sm">
-          Confidence interval: {{ prediction.confidence_interval.lower_formatted }} -
-          {{ prediction.confidence_interval.upper_formatted }}
+        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div class="text-2xl font-bold font-mono text-emerald-600">{{ Math.round(prediction.statistics.total_elevation_gain_m) }}</div>
+          <div class="text-slate-500 text-xs uppercase tracking-wider">{{ $t('results.m_gain') }}</div>
         </div>
-
-        <!-- Hybrid System Info -->
-        <div v-if="prediction.metadata" class="mt-3 text-white/70 text-xs">
-          {{ prediction.metadata.description }}
+        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div class="text-2xl font-bold font-mono text-emerald-600">{{ formatPace(prediction.statistics.flat_pace_min_per_km) }}</div>
+          <div class="text-slate-500 text-xs uppercase tracking-wider">{{ $t('results.flat_pace') }}</div>
         </div>
-      </div>
-
-      <div class="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-white/20">
-        <div class="text-center rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-          <div class="text-2xl font-bold">{{ prediction.statistics.total_distance_km.toFixed(2) }}</div>
-          <div class="text-white/75 text-sm">km</div>
-        </div>
-        <div class="text-center rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-          <div class="text-2xl font-bold">{{ Math.round(prediction.statistics.total_elevation_gain_m) }}</div>
-          <div class="text-white/75 text-sm">m gain</div>
-        </div>
-        <div class="text-center rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-          <div class="text-2xl font-bold">{{ formatPace(prediction.statistics.flat_pace_min_per_km) }}</div>
-          <div class="text-white/75 text-sm">flat pace</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Actions -->
-    <div class="flex gap-2">
-      <button
-        @click="$emit('recalibrate')"
-        class="btn btn-outline"
-      >
-        Recalibrate
-      </button>
-      <button
-        @click="exportResults"
-        class="btn btn-outline"
-      >
-        Export Text
-      </button>
-      <button
-        v-if="prediction.prediction_id"
-        @click="exportVirtualPartner"
-        class="btn btn-primary"
-      >
-        <span>🏃</span> Export Virtual Partner (GPX)
-      </button>
-    </div>
-
-    <!-- Annotations Section -->
-    <div v-if="predictionStore.annotations.length > 0 || selectedRange" class="card">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-bold">Annotations & Selections</h3>
-        <button
-          v-if="predictionStore.annotationsDirty"
-          @click="saveAnnotationsToServer"
-          class="btn btn-primary"
-        >
-          <span>💾</span> Save Annotations
-        </button>
-      </div>
-
-      <!-- Selected Range Display -->
-      <div v-if="selectedRange" class="mb-4 rounded-xl border border-lime-200 bg-lime-50 p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="font-semibold text-lime-900">Selected Range:</span>
-            <span class="ml-2 text-lime-700">
-              {{ selectedRange.start_km.toFixed(2) }} km - {{ selectedRange.end_km.toFixed(2) }} km
-            </span>
-            <span class="ml-2 text-lime-600">
-              ({{ (selectedRange.end_km - selectedRange.start_km).toFixed(2) }} km)
-            </span>
-          </div>
-          <div class="text-right">
-            <div class="text-sm text-lime-600">Predicted time for this segment:</div>
-            <div class="text-2xl font-bold text-lime-900">{{ selectedRangeTime }}</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Annotations List -->
-      <div v-if="predictionStore.annotations.length > 0" class="space-y-2">
-        <div
-          v-for="ann in predictionStore.annotations"
-          :key="ann.id"
-          class="flex items-center justify-between rounded-xl border p-3"
-          :class="ann.type === 'aid_station' ? 'bg-emerald-50 border-emerald-200' : 'bg-sky-50 border-sky-200'"
-        >
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <span v-if="ann.type === 'aid_station'" class="text-2xl">🚰</span>
-              <span v-else class="text-2xl">📍</span>
-              <div>
-                <div class="font-semibold" :class="ann.type === 'aid_station' ? 'text-emerald-900' : 'text-sky-900'">
-                  {{ ann.label }}
-                </div>
-                <div class="text-sm" :class="ann.type === 'aid_station' ? 'text-emerald-600' : 'text-sky-600'">
-                  {{ ann.distance_km.toFixed(2) }} km
-                </div>
-              </div>
-            </div>
-          </div>
-          <button
-            @click="removeAnnotation(ann.id)"
-            class="btn btn-danger"
-          >
-            Remove
-          </button>
-        </div>
-      </div>
-
-      <div v-else class="text-slate-500 text-sm italic">
-        Click on the elevation profile below to add annotations (aid stations or generic markers)
       </div>
     </div>
 
     <!-- Map Visualization -->
-    <div class="card p-2 h-[500px] relative">
+    <div class="card p-1 h-[500px] relative overflow-hidden bg-slate-100">
       <MapView
         v-if="gpxStore.points.length"
         :points="gpxStore.points"
@@ -152,30 +51,50 @@
     </div>
 
     <!-- Elevation & Pace Profile -->
-    <div class="card">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-bold">Elevation & Pace Profile</h3>
+    <div class="card p-4 sm:p-6">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+          <h3 class="text-xl font-bold text-slate-900">{{ $t('results.elevation_pace_title') }}</h3>
+          <p class="text-xs text-slate-500 uppercase tracking-wide mt-1">{{ $t('results.interactive_analysis') }}</p>
+        </div>
 
         <!-- Split Level Control -->
-        <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white/70 px-4 py-2">
-          <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Detail</span>
-          <span class="text-xs text-slate-500">Less</span>
-          <input
-            v-model.number="localSplitLevel"
-            @input="regroupSegments"
-            type="range"
-            min="1"
-            :max="maxValidLevel"
-            step="1"
-            class="w-32 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-lime-500"
-          />
-          <span class="text-xs text-slate-500">More</span>
-          <span class="text-base font-bold text-slate-900">{{ localSplitLevel }}</span>
-          <span v-if="maxValidLevel < 5" class="text-xs text-slate-500">(max {{ maxValidLevel }})</span>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+          <button v-if="isProfileZoomed" class="btn btn-outline text-xs py-1.5 w-full sm:w-auto" type="button" @click="resetProfileZoom">
+            {{ $t('results.reset_zoom') }}
+          </button>
+          
+          <div class="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 w-full sm:w-auto">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $t('results.granularity') }}</span>
+            <input
+              v-model.number="localSplitLevel"
+              @input="regroupSegments"
+              type="range"
+              min="1"
+              :max="maxValidLevel"
+              step="1"
+              class="w-full sm:w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+            />
+            <span class="text-sm font-bold text-slate-700 font-mono w-4 text-center">{{ localSplitLevel }}</span>
+          </div>
+          <button
+            v-if="prediction.prediction_id"
+            @click="exportVirtualPartner"
+            class="btn btn-primary text-xs w-full sm:w-auto"
+          >
+            <span>🏃</span> {{ $t('results.buttons.export_vp') }}
+          </button>
         </div>
+      </div>
+      <div v-if="isMobile && Number.isFinite(pendingAnnotationDistance)" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
+        <span class="font-semibold">{{ $t('results.add_annotation_at', { distance: pendingAnnotationDistance.toFixed(2) }) }}</span>
+        <button class="btn btn-primary text-xs px-3 py-1.5" type="button" @click="openMobileAnnotation">
+          ✏️ {{ $t('results.add_annotation') }}
+        </button>
       </div>
 
       <ElevationPaceProfile
+        ref="elevationProfileRef"
         v-if="gpxStore.points.length"
         :points="gpxStore.points"
         :segments="displaySegments"
@@ -183,8 +102,12 @@
         :average-pace="prediction.statistics.flat_pace_min_per_km"
         :annotations="predictionStore.annotations"
         :selected-range="selectedRange"
+        :tap-to-reveal="isMobile"
+        :edit-label="$t('results.edit_annotation')"
         @click-chart="handleChartClick"
+        @annotation-click="handleAnnotationClick"
         @range-selected="handleRangeSelected"
+        @zoom-changed="handleZoomChanged"
       />
       <div v-else class="flex items-center justify-center h-[500px] text-slate-500">
         Loading profile data...
@@ -192,28 +115,31 @@
     </div>
 
     <!-- Similar Activities -->
-    <div v-if="similarActivities.length > 0" class="card">
-      <h3 class="text-xl font-bold mb-4">Similar Past Activities</h3>
+    <div v-if="similarActivities.length > 0" class="card p-6">
+      <h3 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+         <span class="w-1.5 h-6 bg-sky-500 rounded-full"></span>
+         {{ $t('results.similar_activities') }}
+      </h3>
 
-      <div class="space-y-2">
+      <div class="grid sm:grid-cols-2 gap-4">
         <div
           v-for="activity in similarActivities"
           :key="activity.id"
-          class="flex justify-between items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+          class="flex justify-between items-start rounded-xl border border-slate-100 bg-slate-50/50 p-4 hover:border-sky-200 hover:bg-sky-50 transition-colors cursor-default"
         >
           <div>
-            <p class="font-medium">{{ activity.name }}</p>
-            <p class="text-sm text-slate-600">
-              {{ (activity.distance / 1000).toFixed(2) }} km
-              <span class="mx-2">•</span>
-              {{ formatDate(activity.start_date) }}
+            <p class="font-bold text-slate-800 text-sm mb-1">{{ activity.name }}</p>
+            <p class="text-xs text-slate-500 flex items-center gap-2">
+              <span>{{ (activity.distance / 1000).toFixed(2) }} km</span>
+              <span class="w-1 h-1 rounded-full bg-slate-300"></span>
+              <span>{{ formatDate(activity.start_date) }}</span>
             </p>
           </div>
           <div class="text-right">
-            <div class="font-bold text-slate-900">
+            <div class="font-bold font-mono text-slate-900">
               {{ formatTime(activity.moving_time) }}
             </div>
-            <div class="text-xs text-slate-500">actual time</div>
+            <div class="text-[10px] uppercase tracking-wide text-slate-400">{{ $t('results.actual_time') }}</div>
           </div>
         </div>
       </div>
@@ -224,16 +150,21 @@
       :show="showAnnotationModal"
       :distance-km="pendingAnnotationDistance"
       :predicted-time="pendingAnnotationPredictedTime"
-      @close="showAnnotationModal = false"
+      :anchor="annotationAnchor"
+      :annotation="editingAnnotation"
+      @close="closeAnnotationModal"
       @save="saveAnnotation"
+      @delete="removeEditingAnnotation"
     />
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useGpxStore } from '../stores/gpx'
 import { usePredictionStore } from '../stores/prediction'
+import { useI18n } from 'vue-i18n'
 import MapView from './MapView.vue'
 import ElevationPaceProfile from './ElevationPaceProfile.vue'
 import AnnotationModal from './AnnotationModal.vue'
@@ -241,6 +172,7 @@ import api from '../services/api'
 
 const gpxStore = useGpxStore()
 const predictionStore = usePredictionStore()
+const { locale, t } = useI18n()
 
 const props = defineProps({
   prediction: {
@@ -257,18 +189,29 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['recalibrate'])
+const emit = defineEmits([])
 
 const localSplitLevel = ref(predictionStore.splitLevel)
 const displaySegments = ref([])
 const rawSegments = ref([])
+const elevationProfileRef = ref(null)
+const isProfileZoomed = ref(false)
 const showAnnotationModal = ref(false)
-const pendingAnnotationDistance = ref(0)
+const pendingAnnotationDistance = ref(null)
 const pendingAnnotationPredictedTime = ref(null)
+const annotationAnchor = ref(null)
 const selectedRange = ref(null)
 const selectedRangeTime = ref(null)
 const cachedSegmentsByLevel = ref({}) // Cache for all 5 levels
 const maxValidLevel = ref(5) // Highest level that doesn't exceed MAX_SEGMENTS
+const isMobile = ref(false)
+let mobileMql = null
+let mobileMqlHandler = null
+const segmentTimeline = ref([])
+const segmentEnds = ref([])
+const editingAnnotation = ref(null)
+const prevBodyOverflow = ref('')
+const prevBodyPaddingRight = ref('')
 
 // Group segments by gradient changes
 const getSplitGrade = (segment) => {
@@ -475,41 +418,127 @@ const regroupSegments = () => {
   }
 }
 
-const handleChartClick = ({ distanceKm }) => {
-  pendingAnnotationDistance.value = distanceKm
-  pendingAnnotationPredictedTime.value = calculateTimeToDistance(distanceKm)
-  showAnnotationModal.value = true
+const resetProfileZoom = () => {
+  elevationProfileRef.value?.resetZoom()
+  elevationProfileRef.value?.clearClickMarker()
+  isProfileZoomed.value = false
 }
 
-const calculateTimeToDistance = (targetKm) => {
-  let totalTime = 0
+const handleZoomChanged = (isZoomed) => {
+  isProfileZoomed.value = isZoomed
+  elevationProfileRef.value?.clearClickMarker()
+}
 
-  for (const seg of displaySegments.value) {
-    const segStart = seg.start_km || 0
-    const segEnd = seg.end_km || seg.segment_km || 0
-
-    if (segStart >= targetKm) {
-      break
-    }
-
-    if (segEnd <= targetKm) {
-      // Entire segment is before target
-      const segDist = segEnd - segStart
-      const segTime = seg.avg_pace_min_per_km * segDist * 60
-      totalTime += segTime
-    } else {
-      // Target is inside this segment
-      const partialDist = targetKm - segStart
-      const segTime = seg.avg_pace_min_per_km * partialDist * 60
-      totalTime += segTime
-      break
-    }
-  }
-
+const formatSecondsToHms = (totalTime) => {
   const h = Math.floor(totalTime / 3600)
   const m = Math.floor((totalTime % 3600) / 60)
   const s = Math.floor(totalTime % 60)
   return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
+const buildSegmentTimeline = (segments) => {
+  const fallbackPace = props.prediction?.statistics?.flat_pace_min_per_km
+  const ordered = [...(segments || [])].sort((a, b) => {
+    const aStart = a.start_km ?? 0
+    const bStart = b.start_km ?? 0
+    return aStart - bStart
+  })
+  const timeline = []
+  let cumTime = 0
+
+  ordered.forEach(seg => {
+    const startKm = seg.start_km ?? 0
+    const endKm = seg.end_km ?? seg.segment_km ?? 0
+    if (!Number.isFinite(startKm) || !Number.isFinite(endKm) || endKm <= startKm) {
+      return
+    }
+    const pace = Number.isFinite(seg.avg_pace_min_per_km)
+      ? seg.avg_pace_min_per_km
+      : (Number.isFinite(fallbackPace) ? fallbackPace : null)
+    if (!Number.isFinite(pace)) return
+
+    const segTime = pace * (endKm - startKm) * 60
+    const entry = {
+      startKm,
+      endKm,
+      pace,
+      cumTimeStart: cumTime,
+      cumTimeEnd: cumTime + segTime
+    }
+    cumTime = entry.cumTimeEnd
+    timeline.push(entry)
+  })
+
+  segmentTimeline.value = timeline
+  segmentEnds.value = timeline.map(seg => seg.endKm)
+}
+
+const handleChartClick = ({ distanceKm, screenX, screenY }) => {
+  editingAnnotation.value = null
+  pendingAnnotationDistance.value = distanceKm
+  pendingAnnotationPredictedTime.value = calculateTimeToDistance(distanceKm)
+  annotationAnchor.value = Number.isFinite(screenX) && Number.isFinite(screenY)
+    ? { x: screenX, y: screenY }
+    : null
+  if (isMobile.value) {
+    return
+  }
+  elevationProfileRef.value?.hideTooltip()
+  showAnnotationModal.value = true
+}
+
+const openMobileAnnotation = () => {
+  if (!Number.isFinite(pendingAnnotationDistance.value)) return
+  elevationProfileRef.value?.hideTooltip()
+  showAnnotationModal.value = true
+}
+
+const handleAnnotationClick = ({ annotation, screenX, screenY }) => {
+  if (!annotation) return
+  editingAnnotation.value = annotation
+  pendingAnnotationDistance.value = annotation.distance_km
+  pendingAnnotationPredictedTime.value = calculateTimeToDistance(annotation.distance_km)
+  annotationAnchor.value = Number.isFinite(screenX) && Number.isFinite(screenY)
+    ? { x: screenX, y: screenY }
+    : null
+  elevationProfileRef.value?.hideTooltip()
+  showAnnotationModal.value = true
+}
+
+const closeAnnotationModal = () => {
+  showAnnotationModal.value = false
+  elevationProfileRef.value?.clearClickMarker()
+  editingAnnotation.value = null
+}
+
+const calculateTimeToDistance = (targetKm) => {
+  if (!Number.isFinite(targetKm) || segmentTimeline.value.length === 0) {
+    return formatSecondsToHms(0)
+  }
+
+  let low = 0
+  let high = segmentEnds.value.length - 1
+  let idx = segmentEnds.value.length - 1
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (targetKm <= segmentEnds.value[mid]) {
+      idx = mid
+      high = mid - 1
+    } else {
+      low = mid + 1
+    }
+  }
+
+  const seg = segmentTimeline.value[idx]
+  if (!seg) return formatSecondsToHms(0)
+  if (targetKm <= seg.startKm) {
+    return formatSecondsToHms(seg.cumTimeStart)
+  }
+
+  const partialDist = Math.max(0, targetKm - seg.startKm)
+  const totalTime = seg.cumTimeStart + (seg.pace * partialDist * 60)
+  return formatSecondsToHms(totalTime)
 }
 
 const handleRangeSelected = (range) => {
@@ -522,27 +551,40 @@ const handleRangeSelected = (range) => {
 }
 
 const calculateRangeTime = (startKm, endKm) => {
+  if (segmentTimeline.value.length === 0) {
+    return formatSecondsToHms(0)
+  }
+
   let totalTime = 0
+  let low = 0
+  let high = segmentEnds.value.length - 1
+  let idx = segmentEnds.value.length - 1
 
-  displaySegments.value.forEach(seg => {
-    const segStart = seg.start_km || 0
-    const segEnd = seg.end_km || seg.segment_km || 0
-
-    if (segEnd > startKm && segStart < endKm) {
-      const overlapStart = Math.max(segStart, startKm)
-      const overlapEnd = Math.min(segEnd, endKm)
-      const overlapDist = overlapEnd - overlapStart
-      const segDist = segEnd - segStart
-      const segTime = seg.avg_pace_min_per_km * segDist * 60
-      const overlapTime = (overlapDist / segDist) * segTime
-      totalTime += overlapTime
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (startKm <= segmentEnds.value[mid]) {
+      idx = mid
+      high = mid - 1
+    } else {
+      low = mid + 1
     }
-  })
+  }
 
-  const h = Math.floor(totalTime / 3600)
-  const m = Math.floor((totalTime % 3600) / 60)
-  const s = Math.floor(totalTime % 60)
-  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  for (let i = idx; i < segmentTimeline.value.length; i++) {
+    const seg = segmentTimeline.value[i]
+    if (seg.startKm >= endKm) break
+
+    if (seg.endKm > startKm && seg.startKm < endKm) {
+      const overlapStart = Math.max(seg.startKm, startKm)
+      const overlapEnd = Math.min(seg.endKm, endKm)
+      const overlapDist = overlapEnd - overlapStart
+      if (overlapDist > 0) {
+        totalTime += seg.pace * overlapDist * 60
+      }
+    }
+  }
+
+  return formatSecondsToHms(totalTime)
 }
 
 const saveAnnotation = (annotation) => {
@@ -558,7 +600,16 @@ const saveAnnotation = (annotation) => {
     }
   }
 
-  if (closest) {
+  if (!closest) return
+
+  if (editingAnnotation.value) {
+    predictionStore.updateAnnotation(editingAnnotation.value.id, {
+      ...annotation,
+      distance_km: editingAnnotation.value.distance_km,
+      lat: editingAnnotation.value.lat,
+      lon: editingAnnotation.value.lon
+    })
+  } else {
     predictionStore.addAnnotation({
       ...annotation,
       lat: closest.lat,
@@ -571,6 +622,12 @@ const removeAnnotation = (annotationId) => {
   if (confirm('Remove this annotation?')) {
     predictionStore.removeAnnotation(annotationId)
   }
+}
+
+const removeEditingAnnotation = () => {
+  if (!editingAnnotation.value) return
+  predictionStore.removeAnnotation(editingAnnotation.value.id)
+  closeAnnotationModal()
 }
 
 const saveAnnotationsToServer = async () => {
@@ -588,6 +645,49 @@ onMounted(() => {
 
   if (props.prediction.prediction_id) {
     predictionStore.loadAnnotations(props.prediction.prediction_id)
+  }
+
+  if (typeof window !== 'undefined') {
+    mobileMql = window.matchMedia('(max-width: 640px)')
+    const update = (event) => {
+      isMobile.value = event?.matches ?? mobileMql.matches
+    }
+    update()
+    mobileMqlHandler = update
+    if (mobileMql.addEventListener) {
+      mobileMql.addEventListener('change', update)
+    } else if (mobileMql.addListener) {
+      mobileMql.addListener(update)
+    }
+  }
+})
+
+watch(displaySegments, (segments) => {
+  buildSegmentTimeline(segments)
+}, { immediate: true })
+
+watch(showAnnotationModal, (isOpen) => {
+  if (typeof document === 'undefined') return
+  if (isOpen) {
+    prevBodyOverflow.value = document.body.style.overflow
+    prevBodyPaddingRight.value = document.body.style.paddingRight
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+    document.body.style.overflow = 'hidden'
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`
+    }
+  } else {
+    document.body.style.overflow = prevBodyOverflow.value || ''
+    document.body.style.paddingRight = prevBodyPaddingRight.value || ''
+  }
+})
+
+onBeforeUnmount(() => {
+  if (!mobileMql || !mobileMqlHandler) return
+  if (mobileMql.removeEventListener) {
+    mobileMql.removeEventListener('change', mobileMqlHandler)
+  } else if (mobileMql.removeListener) {
+    mobileMql.removeListener(mobileMqlHandler)
   }
 })
 
@@ -607,7 +707,7 @@ const formatPace = (paceDecimal) => {
 
 const formatDate = (dateStr) => {
   const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString(locale.value, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 const formatTime = (seconds) => {
@@ -642,12 +742,7 @@ const exportVirtualPartner = async () => {
 }
 
 const formatTier = (tier) => {
-  const tierMap = {
-    'TIER_1_PHYSICS': 'Physics Baseline',
-    'TIER_2_PARAMETER_LEARNING': 'Personalized Physics',
-    'TIER_3_RESIDUAL_ML': 'ML Enhanced'
-  }
-  return tierMap[tier] || tier
+  return t(`prediction.tiers.${tier}`) || tier
 }
 
 const exportResults = () => {

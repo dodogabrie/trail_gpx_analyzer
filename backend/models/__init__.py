@@ -9,6 +9,7 @@ from .user_achievement import UserAchievement
 from .user_activity_residual import UserActivityResidual
 from .user_learned_params import UserLearnedParams
 from .user_residual_model import UserResidualModel
+from .evaluation_status import EvaluationStatus
 
 __all__ = [
     'User',
@@ -21,5 +22,6 @@ __all__ = [
     'UserAchievement',
     'UserActivityResidual',
     'UserLearnedParams',
-    'UserResidualModel'
+    'UserResidualModel',
+    'EvaluationStatus'
 ]

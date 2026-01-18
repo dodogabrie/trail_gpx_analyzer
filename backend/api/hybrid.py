@@ -166,9 +166,23 @@ def predict():
         s = int(total_time_sec % 60)
         total_time_formatted = f"{h:02d}:{m:02d}:{s:02d}"
 
-        # Confidence interval (±10% for now, can be refined per tier)
-        ci_lower = total_time_sec * 0.9
-        ci_upper = total_time_sec * 1.1
+        # Confidence interval - tier-specific
+        tier = metadata.get('tier', 'TIER_1_PHYSICS')
+
+        if tier == 'TIER_3_RESIDUAL_ML' and 'confidence_interval' in result:
+            # Use variance-based CI from ML model (proper statistical CI)
+            ci_data = result['confidence_interval']
+            ci_lower = ci_data.get('lower_seconds', total_time_sec * 0.94)
+            ci_upper = ci_data.get('upper_seconds', total_time_sec * 1.06)
+        elif tier == 'TIER_2_PARAMETER_LEARNING':
+            # Moderate uncertainty - personalized params but no ML
+            ci_lower = total_time_sec * 0.92
+            ci_upper = total_time_sec * 1.08
+        else:
+            # Tier 1 - highest uncertainty (default params)
+            ci_lower = total_time_sec * 0.88
+            ci_upper = total_time_sec * 1.12
+
         ci_lower_formatted = f"{int(ci_lower//3600):02d}:{int((ci_lower%3600)//60):02d}:{int(ci_lower%60):02d}"
         ci_upper_formatted = f"{int(ci_upper//3600):02d}:{int((ci_upper%3600)//60):02d}:{int(ci_upper%60):02d}"
 

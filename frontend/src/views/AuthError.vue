@@ -1,32 +1,47 @@
 <template>
   <div class="card text-center">
-    <h2 class="section-title text-rose-600 mb-4">Authentication Failed</h2>
+    <h2 class="section-title text-rose-600 mb-4">{{ $t('auth_error.title') }}</h2>
     <p class="text-slate-600 mb-4">{{ errorMessage }}</p>
     <router-link
-      to="/"
+      :to="homeRoute"
       class="btn btn-primary inline-flex"
     >
-      Return to Home
+      {{ $t('auth_error.cta') }}
     </router-link>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
-const errorMessage = ref('An error occurred during authentication.')
+const { locale, t } = useI18n()
+const errorMessage = ref(t('auth_error.default_message'))
+const homeRoute = computed(() => {
+  const langParam = route.params.lang
+  const useLang = typeof langParam === 'string' && langParam.length > 0
+  if (useLang) {
+    return { name: 'Home', params: { lang: langParam } }
+  }
+  const storedLang = typeof localStorage === 'undefined' ? null : localStorage.getItem('preferred_lang')
+  const fallbackLang = storedLang || locale.value
+  if (fallbackLang) {
+    return { name: 'Home', params: { lang: fallbackLang } }
+  }
+  return { name: 'Home' }
+})
 
 onMounted(() => {
   const error = route.query.error
 
   if (error === 'no_code') {
-    errorMessage.value = 'No authorization code was received from Strava.'
+    errorMessage.value = t('auth_error.no_code')
   } else if (error === 'exchange_failed') {
-    errorMessage.value = 'Failed to exchange authorization code for access token.'
+    errorMessage.value = t('auth_error.exchange_failed')
   } else if (error) {
-    errorMessage.value = `Error: ${error}`
+    errorMessage.value = t('auth_error.generic', { error })
   }
 })
 </script>

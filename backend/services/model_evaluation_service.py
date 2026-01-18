@@ -14,7 +14,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from database import db
-from models import UserActivityResidual, StravaActivity, UserLearnedParams, UserResidualModel
+from models import UserActivityResidual, EvaluationStatus
 from services.physics_prediction_service import PhysicsPredictionService
 from services.parameter_learning_service import ParameterLearningService
 from config.hybrid_config import (
@@ -57,16 +57,123 @@ class ModelEvaluationService:
 
     Implements leave-one-out evaluation where the longest activity (by distance
     + elevation score) is held out for testing while training on all others.
+
+    Provides progress updates via EvaluationStatus model for frontend display.
     """
+
+    # Step definitions for progress tracking
+    STEPS = {
+        'loading_activities': (1, 'Loading activities...'),
+        'finding_target': (2, 'Finding longest activity...'),
+        'training_params': (3, 'Training physics parameters...'),
+        'training_gbm': (4, 'Training ML model...'),
+        'predicting': (5, 'Running predictions...'),
+        'calculating_errors': (6, 'Calculating error statistics...')
+    }
+    TOTAL_STEPS = 6
 
     def __init__(self):
         self.physics_service = PhysicsPredictionService()
         self.parameter_service = ParameterLearningService()
 
+    def _get_or_create_status(self, user_id: int) -> EvaluationStatus:
+        """Get or create evaluation status record for user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            EvaluationStatus record
+        """
+        status = EvaluationStatus.query.filter_by(user_id=user_id).first()
+        if not status:
+            status = EvaluationStatus(user_id=user_id)
+            db.session.add(status)
+            db.session.commit()
+        return status
+
+    def _update_status(
+        self,
+        user_id: int,
+        step: str,
+        message: Optional[str] = None,
+        **kwargs
+    ) -> None:
+        """Update evaluation status.
+
+        Args:
+            user_id: User ID
+            step: Current step name
+            message: Optional custom message
+            **kwargs: Additional fields to update
+        """
+        try:
+            status = self._get_or_create_status(user_id)
+            step_num, default_msg = self.STEPS.get(step, (0, ''))
+
+            status.current_step = step
+            status.current_step_number = step_num
+            status.message = message or default_msg
+
+            for key, value in kwargs.items():
+                if hasattr(status, key):
+                    setattr(status, key, value)
+
+            db.session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to update status: {e}")
+            db.session.rollback()
+
+    def _start_evaluation(self, user_id: int) -> None:
+        """Mark evaluation as started.
+
+        Args:
+            user_id: User ID
+        """
+        status = self._get_or_create_status(user_id)
+        status.reset()
+        status.status = 'running'
+        status.started_at = datetime.utcnow()
+        status.total_steps = self.TOTAL_STEPS
+        db.session.commit()
+
+    def _complete_evaluation(self, user_id: int, success: bool = True, error: str = None) -> None:
+        """Mark evaluation as completed.
+
+        Args:
+            user_id: User ID
+            success: Whether evaluation completed successfully
+            error: Error message if failed
+        """
+        status = self._get_or_create_status(user_id)
+        status.status = 'completed' if success else 'error'
+        status.completed_at = datetime.utcnow()
+        status.current_step_number = self.TOTAL_STEPS if success else status.current_step_number
+        if error:
+            status.error_message = error
+        if success:
+            status.message = 'Evaluation complete!'
+        db.session.commit()
+
+    def get_status(self, user_id: int) -> Dict:
+        """Get current evaluation status for user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Status dict for API response
+        """
+        status = EvaluationStatus.query.filter_by(user_id=user_id).first()
+        if not status:
+            return {'status': 'idle', 'progress_percent': 0}
+        return status.to_dict()
+
     def evaluate_user(self, user_id: int) -> Dict:
         """Run full evaluation for a user.
 
         Finds longest activity, trains on others, predicts, and calculates errors.
+        Updates EvaluationStatus throughout for progress tracking.
 
         Args:
             user_id: User ID
@@ -76,8 +183,11 @@ class ModelEvaluationService:
         """
         try:
             logger.info(f"Starting evaluation for user {user_id}")
+            self._start_evaluation(user_id)
 
-            # Get all residuals for the user
+            # Step 1: Load activities
+            self._update_status(user_id, 'loading_activities')
+
             all_residuals = (
                 UserActivityResidual.query
                 .filter_by(user_id=user_id, excluded_from_training=False)
@@ -86,46 +196,99 @@ class ModelEvaluationService:
             )
 
             if len(all_residuals) < TIER_2_MIN_ACTIVITIES + 1:
-                return {
-                    'error': f'Insufficient activities ({len(all_residuals)}). Need at least {TIER_2_MIN_ACTIVITIES + 1}.'
-                }
+                error_msg = f'Insufficient activities ({len(all_residuals)}). Need at least {TIER_2_MIN_ACTIVITIES + 1}.'
+                self._complete_evaluation(user_id, success=False, error=error_msg)
+                return {'error': error_msg}
 
-            # Find longest activity
+            self._update_status(
+                user_id, 'loading_activities',
+                message=f'Loaded {len(all_residuals)} activities',
+                total_activities=len(all_residuals)
+            )
+
+            # Step 2: Find longest activity
+            self._update_status(user_id, 'finding_target')
+
             target_activity = self._find_longest_activity(all_residuals)
             logger.info(f"Target activity: {target_activity.activity_id} "
                        f"(dist={target_activity.total_distance_km:.1f}km, "
                        f"elev={target_activity.total_elevation_gain_m:.0f}m)")
 
+            self._update_status(
+                user_id, 'finding_target',
+                message=f'Target: {target_activity.total_distance_km:.1f}km, {target_activity.total_elevation_gain_m:.0f}m D+',
+                target_activity_id=target_activity.activity_id,
+                total_segments=len(target_activity.segments)
+            )
+
             # Train on other activities
             training_residuals = [r for r in all_residuals if r.activity_id != target_activity.activity_id]
             logger.info(f"Training on {len(training_residuals)} activities")
 
-            # Train Tier 2 params
+            self._update_status(
+                user_id, 'training_params',
+                message=f'Training on {len(training_residuals)} activities...',
+                training_activities=len(training_residuals)
+            )
+
+            # Step 3: Train Tier 2 params
             learned_params = self._train_params_on_subset(training_residuals)
             if not learned_params:
                 learned_params = DEFAULT_PARAMS.copy()
                 logger.warning("Parameter learning failed, using defaults")
 
-            # Train GBM model if enough data
+            self._update_status(
+                user_id, 'training_params',
+                message='Physics parameters trained'
+            )
+
+            # Step 4: Train GBM model if enough data
             gbm_model = None
             tier_used = 'tier_2'
             if len(training_residuals) >= TIER_3_MIN_ACTIVITIES:
+                self._update_status(
+                    user_id, 'training_gbm',
+                    message=f'Training ML model on {sum(len(r.segments) for r in training_residuals)} segments...'
+                )
+
                 gbm_model = self._train_gbm_on_subset(training_residuals)
                 if gbm_model:
                     tier_used = 'tier_3'
                     logger.info("GBM model trained successfully")
+                    self._update_status(user_id, 'training_gbm', message='ML model trained')
                 else:
                     logger.warning("GBM training failed, using Tier 2 only")
+                    self._update_status(user_id, 'training_gbm', message='ML training skipped (insufficient data)')
+            else:
+                self._update_status(
+                    user_id, 'training_gbm',
+                    message=f'Skipping ML (need {TIER_3_MIN_ACTIVITIES}+ activities)'
+                )
 
-            # Predict on target activity
+            # Step 5: Predict on target activity
+            self._update_status(
+                user_id, 'predicting',
+                message=f'Predicting {len(target_activity.segments)} segments...'
+            )
+
             predictions = self._predict_target_activity(
                 target_activity, learned_params, gbm_model
             )
 
             if not predictions:
-                return {'error': 'Prediction failed for target activity'}
+                error_msg = 'Prediction failed for target activity'
+                self._complete_evaluation(user_id, success=False, error=error_msg)
+                return {'error': error_msg}
 
-            # Calculate errors
+            self._update_status(
+                user_id, 'predicting',
+                message=f'Predicted {len(predictions)} segments',
+                processed_segments=len(predictions)
+            )
+
+            # Step 6: Calculate errors
+            self._update_status(user_id, 'calculating_errors')
+
             general_stats = self._calculate_general_statistics(predictions)
             slope_errors = self._calculate_slope_errors(predictions)
 
@@ -161,11 +324,15 @@ class ModelEvaluationService:
             output_path = self._save_results(user_id, result)
             result['output_file'] = output_path
 
+            # Mark evaluation complete
+            self._complete_evaluation(user_id, success=True)
+
             logger.info(f"Evaluation complete for user {user_id}. Saved to {output_path}")
             return result
 
         except Exception as e:
             logger.exception(f"Evaluation failed for user {user_id}: {e}")
+            self._complete_evaluation(user_id, success=False, error=str(e))
             return {'error': str(e)}
 
     def _find_longest_activity(self, residuals: List[UserActivityResidual]) -> UserActivityResidual:

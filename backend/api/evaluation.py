@@ -52,6 +52,30 @@ def run_evaluation():
     return jsonify(result), 200
 
 
+@bp.route('/status', methods=['GET'])
+def get_status():
+    """Get current evaluation progress status.
+
+    Returns:
+        JSON with current status including:
+        - status: idle, running, completed, error
+        - current_step: Current step name
+        - progress_percent: Overall progress (0-100)
+        - message: Current status message
+        - total_activities: Number of activities being processed
+        - training_activities: Number of activities used for training
+        - target_activity_id: ID of activity being predicted
+    """
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    service = get_evaluation_service()
+    status = service.get_status(user.id)
+
+    return jsonify(status), 200
+
+
 @bp.route('/results', methods=['GET'])
 def list_results():
     """List available evaluation results for current user.

@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Blueprint, request, jsonify, current_app
 from models import User, StravaActivity
+from models.sync_status import SyncStatus
 from database import db
 from api.utils import get_current_user
 from services.strava_service import StravaService
@@ -89,3 +90,26 @@ def get_activities():
         current_app.logger.error(f"Fetch activities error: {str(e)}")
         return jsonify({'error': 'Failed to fetch activities'}), 500
 
+
+@bp.route('/sync-status', methods=['GET'])
+def get_sync_status():
+    """Get background Strava sync status for the current user."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    sync_status = SyncStatus.query.filter_by(user_id=user.id).first()
+    if not sync_status:
+        return jsonify({
+            'status': 'idle',
+            'current_step': None,
+            'total_activities': 0,
+            'downloaded_activities': 0,
+            'progress_percent': 0,
+            'message': 'Awaiting Strava sync to start...',
+            'error_message': None,
+            'started_at': None,
+            'completed_at': None
+        })
+
+    return jsonify(sync_status.to_dict())
