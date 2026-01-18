@@ -1,7 +1,34 @@
 import axios from 'axios'
 
+const fallbackBaseUrl = () => {
+  if (typeof window === 'undefined') return 'http://localhost:5000/api'
+  const { protocol, hostname } = window.location
+  return `${protocol}//${hostname}:5000/api`
+}
+
+const resolveBaseUrl = () => {
+  const envBase = import.meta.env.VITE_API_URL
+  if (!envBase) return fallbackBaseUrl()
+  if (typeof window === 'undefined') return envBase
+  try {
+    const url = new URL(envBase)
+    const isLocalEnv =
+      url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+    const isRemotePage =
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    if (isLocalEnv && isRemotePage) {
+      url.hostname = window.location.hostname
+      return url.toString().replace(/\/$/, '')
+    }
+  } catch (error) {
+    // Fall back to envBase if it's not a valid URL.
+  }
+  return envBase
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: resolveBaseUrl(),
   withCredentials: false
 })
 

@@ -18,6 +18,8 @@ bp = Blueprint('gpx', __name__, url_prefix='/api/gpx')
 def upload_gpx():
     """Upload and parse GPX file."""
     user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
 
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
@@ -71,6 +73,8 @@ def upload_gpx():
 def list_gpx_files():
     """List all GPX files for current user."""
     user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
 
     gpx_files = GPXFile.query.filter_by(user_id=user.id).order_by(GPXFile.upload_date.desc()).all()
 
@@ -82,6 +86,8 @@ def list_gpx_files():
 def get_gpx_file(gpx_id):
     """Get GPX file metadata."""
     user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
 
     gpx_file = GPXFile.query.filter_by(id=gpx_id, user_id=user.id).first()
 
@@ -94,6 +100,8 @@ def get_gpx_file(gpx_id):
 def get_gpx_data(gpx_id):
     """Get parsed GPX data."""
     user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
 
     gpx_file = GPXFile.query.filter_by(id=gpx_id, user_id=user.id).first()
 
@@ -109,6 +117,8 @@ def get_gpx_data(gpx_id):
 def delete_gpx_file(gpx_id):
     """Delete GPX file."""
     user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
 
     gpx_file = GPXFile.query.filter_by(id=gpx_id, user_id=user.id).first()
 

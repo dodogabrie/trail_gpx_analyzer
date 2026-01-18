@@ -109,6 +109,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { onMounted } from 'vue'
 import { useAuthStore } from './stores/auth'
+import api from './services/api'
 
 const authStore = useAuthStore()
 const route = useRoute()
@@ -166,8 +167,32 @@ onMounted(async () => {
 })
 
 const connectStrava = async () => {
-  const authUrl = await authStore.getStravaAuthUrl()
-  window.location.href = authUrl
+  try {
+    console.debug('connectStrava: requesting auth URL...')
+    const authUrl = await authStore.getStravaAuthUrl()
+    console.debug('connectStrava: got auth URL', authUrl)
+    window.location.href = authUrl
+  } catch (error) {
+    const status = error?.response?.status
+    const statusText = error?.response?.statusText
+    const url = error?.config?.url
+    const baseUrl = error?.config?.baseURL || api?.defaults?.baseURL
+    const code = error?.code
+    const message = error?.message || 'Unknown error'
+    const details = [
+      'Unable to start Strava login.',
+      status ? `Status: ${status}${statusText ? ` ${statusText}` : ''}` : null,
+      baseUrl ? `Base URL: ${baseUrl}` : null,
+      url ? `URL: ${url}` : null,
+      code ? `Code: ${code}` : null,
+      `Page: ${window.location.href}`,
+      `Message: ${message}`
+    ]
+      .filter(Boolean)
+      .join('\n')
+    console.error('connectStrava: failed to get auth URL', error)
+    alert(details)
+  }
 }
 
 const logout = () => {
