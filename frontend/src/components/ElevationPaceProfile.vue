@@ -1,5 +1,5 @@
 <template>
-    <div class="w-full h-[360px] sm:h-[420px] md:h-[500px] overflow-x-auto touch-pan-x">
+    <div class="w-full h-[360px] sm:h-[420px] md:h-[500px] overflow-x-auto overflow-y-hidden touch-pan-x">
         <div :class="props.tapToReveal ? 'min-w-[900px] h-full' : 'h-full'" class="relative">
             <v-chart
                 ref="chartRef"
@@ -280,6 +280,7 @@ const setupEventListeners = () => {
     if (!chartRef.value) return;
 
     const chart = getChartInstance();
+    let pointerInGrid = false;
 
     if (chart) {
         const getAnnotationHit = (event) => {
@@ -488,6 +489,10 @@ const setupEventListeners = () => {
         };
         // Listen to axis pointer updates to track mouse position
         chart.on("updateAxisPointer", (event) => {
+            if (!pointerInGrid) {
+                hoveredSegmentIndex.value = null;
+                return;
+            }
             const xAxisInfo = event.axesInfo[0];
             if (xAxisInfo && xAxisInfo.value !== undefined) {
                 pendingHoverDistance = xAxisInfo.value;
@@ -635,6 +640,19 @@ const setupEventListeners = () => {
         });
 
         chart.getZr().on("mousemove", (event) => {
+            const elevationGridModel = chart
+                .getModel()
+                .getComponent("grid", 0);
+            if (elevationGridModel) {
+                const rect = elevationGridModel.coordinateSystem.getRect();
+                pointerInGrid =
+                    event.offsetX >= rect.x &&
+                    event.offsetX <= rect.x + rect.width &&
+                    event.offsetY >= rect.y &&
+                    event.offsetY <= rect.y + rect.height;
+            } else {
+                pointerInGrid = false;
+            }
             const hit = getAnnotationHit(event);
             if (hit) {
                 chart.getZr().setCursorStyle("pointer");
@@ -647,6 +665,9 @@ const setupEventListeners = () => {
             } else {
                 chart.getZr().setCursorStyle("default");
                 hoverEditHint.value = null;
+                if (!pointerInGrid) {
+                    hoveredSegmentIndex.value = null;
+                }
                 removeHoverAnnotation();
             }
         });
@@ -1039,8 +1060,8 @@ const chartOption = computed(() => {
     const minElev = Math.min(...elevations);
     const maxElev = Math.max(...elevations);
     const elevRange = maxElev - minElev;
-    const elevationMin = minElev - elevRange * 0.1;
-    const elevationMax = maxElev + elevRange * 0.1;
+    const elevationMin = Math.floor(minElev - elevRange * 0.1);
+    const elevationMax = Math.ceil(maxElev + elevRange * 0.1);
     elevationBoundsRef.value = { min: elevationMin, max: elevationMax };
 
     const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -1093,14 +1114,22 @@ const chartOption = computed(() => {
     const sliderZoom = {
         type: "slider",
         xAxisIndex: [0],
-        bottom: 10,
-        height: 18,
+        bottom: 6,
+        height: 28,
         backgroundColor: "rgba(148, 163, 184, 0.08)",
         borderColor: "rgba(148, 163, 184, 0.5)",
-        fillerColor: "rgba(34, 197, 94, 0.2)",
+        fillerColor: "rgba(34, 197, 94, 0.25)",
+        borderRadius: 8,
+        handleSize: 18,
         handleStyle: {
             color: "#0f172a",
             borderColor: "#0f172a",
+            shadowBlur: 6,
+            shadowColor: "rgba(15, 23, 42, 0.2)",
+        },
+        moveHandleSize: 10,
+        moveHandleStyle: {
+            color: "#16a34a",
         },
         textStyle: {
             color: "#64748b",
@@ -1110,6 +1139,10 @@ const chartOption = computed(() => {
     const insideZoom = {
         type: "inside",
         xAxisIndex: [0],
+        zoomOnMouseWheel: "ctrl",
+        moveOnMouseWheel: false,
+        preventDefaultMouseWheel: false,
+        preventDefaultMouseMove: false,
         throttle: 50,
     };
 
@@ -1264,6 +1297,8 @@ const chartOption = computed(() => {
                 name: "Distance (km)",
                 nameLocation: "middle",
                 nameGap: 30,
+                min: 0,
+                max: totalDistance,
                 axisLine: {
                     lineStyle: {
                         color: "rgba(148, 163, 184, 0.8)",
@@ -1272,6 +1307,7 @@ const chartOption = computed(() => {
                 axisLabel: {
                     color: "#64748b",
                     fontSize: props.tapToReveal ? 10 : 12,
+                    formatter: (value) => Math.round(value),
                 },
                 nameTextStyle: {
                     color: "#0f172a",
@@ -1301,6 +1337,7 @@ const chartOption = computed(() => {
                 axisLabel: {
                     color: "#64748b",
                     fontSize: props.tapToReveal ? 10 : 12,
+                    formatter: (value) => Math.round(value),
                 },
                 nameTextStyle: {
                     color: "#0f172a",

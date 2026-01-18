@@ -22,24 +22,33 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-200">
-        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div class="text-2xl font-bold font-mono text-emerald-600">{{ prediction.statistics.total_distance_km.toFixed(2) }}</div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-200">
+        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-3 sm:px-4 py-3 min-w-0">
+          <div class="text-xl sm:text-2xl font-bold font-mono text-emerald-600 leading-tight whitespace-nowrap truncate">{{ prediction.statistics.total_distance_km.toFixed(2) }}</div>
           <div class="text-slate-500 text-xs uppercase tracking-wider">{{ $t('results.km') }}</div>
         </div>
-        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div class="text-2xl font-bold font-mono text-emerald-600">{{ Math.round(prediction.statistics.total_elevation_gain_m) }}</div>
+        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-3 sm:px-4 py-3 min-w-0">
+          <div class="text-xl sm:text-2xl font-bold font-mono text-emerald-600 leading-tight whitespace-nowrap truncate">{{ Math.round(prediction.statistics.total_elevation_gain_m) }}</div>
           <div class="text-slate-500 text-xs uppercase tracking-wider">{{ $t('results.m_gain') }}</div>
         </div>
-        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <div class="text-2xl font-bold font-mono text-emerald-600">{{ formatPace(prediction.statistics.flat_pace_min_per_km) }}</div>
+        <div class="text-center rounded-xl border border-slate-200 bg-slate-50 px-3 sm:px-4 py-3 min-w-0 col-span-2 sm:col-span-1">
+          <div class="text-xl sm:text-2xl font-bold font-mono text-emerald-600 leading-tight whitespace-nowrap truncate">{{ formatPace(prediction.statistics.flat_pace_min_per_km) }}</div>
           <div class="text-slate-500 text-xs uppercase tracking-wider">{{ $t('results.flat_pace') }}</div>
         </div>
       </div>
     </div>
 
     <!-- Map Visualization -->
-    <div class="card p-1 h-[500px] relative overflow-hidden bg-slate-100">
+    <div v-if="isMobile" class="flex justify-end">
+      <button
+        class="btn btn-outline text-xs"
+        type="button"
+        @click="showMap = !showMap"
+      >
+        {{ showMap ? 'Hide map' : 'Show map' }}
+      </button>
+    </div>
+    <div v-if="!isMobile || showMap" class="card p-1 h-[500px] relative overflow-hidden bg-slate-100">
       <MapView
         v-if="gpxStore.points.length"
         :points="gpxStore.points"
@@ -212,6 +221,7 @@ const segmentEnds = ref([])
 const editingAnnotation = ref(null)
 const prevBodyOverflow = ref('')
 const prevBodyPaddingRight = ref('')
+const showMap = ref(true)
 
 // Group segments by gradient changes
 const getSplitGrade = (segment) => {

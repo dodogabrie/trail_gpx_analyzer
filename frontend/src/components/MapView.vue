@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useMapStore } from '../stores/map'
@@ -53,6 +53,8 @@ let selectionLayer = null
 let annotationMarkers = null
 let topoLayer = null
 let osmLayer = null
+let ctrlKeyHandler = null
+let ctrlKeyUpHandler = null
 
 const initMap = () => {
   map = L.map(mapContainer.value).setView([mapStore.center.lat, mapStore.center.lon], mapStore.zoom)
@@ -86,6 +88,22 @@ const initMap = () => {
     const center = map.getCenter()
     mapStore.updateCenter({ lat: center.lat, lon: center.lng })
   })
+
+  map.scrollWheelZoom.disable()
+  ctrlKeyHandler = (event) => {
+    if (!map) return
+    if (event.key === 'Control') {
+      map.scrollWheelZoom.enable()
+    }
+  }
+  ctrlKeyUpHandler = (event) => {
+    if (!map) return
+    if (event.key === 'Control') {
+      map.scrollWheelZoom.disable()
+    }
+  }
+  window.addEventListener('keydown', ctrlKeyHandler)
+  window.addEventListener('keyup', ctrlKeyUpHandler)
 }
 
 const drawRoute = (points) => {
@@ -208,6 +226,20 @@ onMounted(() => {
   }
 })
 
+onBeforeUnmount(() => {
+  if (ctrlKeyHandler) {
+    window.removeEventListener('keydown', ctrlKeyHandler)
+    ctrlKeyHandler = null
+  }
+  if (ctrlKeyUpHandler) {
+    window.removeEventListener('keyup', ctrlKeyUpHandler)
+    ctrlKeyUpHandler = null
+  }
+  if (map) {
+    map.scrollWheelZoom.disable()
+  }
+})
+
 watch(() => props.points, (newPoints) => {
   if (newPoints && newPoints.length > 0) {
     drawRoute(newPoints)
@@ -234,6 +266,7 @@ watch(() => props.annotations, (annotations) => {
   border-radius: 8px;
   overflow: hidden;
   position: relative;
+  z-index: 0;
 }
 
 .layer-switcher {
