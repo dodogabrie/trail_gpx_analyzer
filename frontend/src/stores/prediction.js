@@ -43,7 +43,22 @@ export const usePredictionStore = defineStore('prediction', {
     recommendedActivities: (state) =>
       state.calibrationActivities.filter(a => a.recommended),
     totalPredictedTime: (state) =>
-      state.prediction?.total_time_formatted || null
+      state.prediction?.total_time_formatted || null,
+    totalStopTimeSeconds: (state) =>
+      state.annotations.reduce((sum, a) => sum + (a.stop_time_seconds || 0), 0),
+    adjustedTotalTimeSeconds: (state) => {
+      if (!state.prediction?.total_time_seconds) return null
+      const stopTime = state.annotations.reduce((sum, a) => sum + (a.stop_time_seconds || 0), 0)
+      return state.prediction.total_time_seconds + stopTime
+    },
+    adjustedTotalTimeFormatted() {
+      const totalSeconds = this.adjustedTotalTimeSeconds
+      if (totalSeconds === null) return null
+      const h = Math.floor(totalSeconds / 3600)
+      const m = Math.floor((totalSeconds % 3600) / 60)
+      const s = Math.floor(totalSeconds % 60)
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    }
   },
 
   actions: {

@@ -8,8 +8,13 @@
 
       <div class="text-center py-4">
       <div class="text-5xl md:text-6xl font-bold mb-2 font-mono tracking-tight text-slate-900">
-        {{ prediction.total_time_formatted }}
+        {{ predictionStore.totalStopTimeSeconds > 0 ? predictionStore.adjustedTotalTimeFormatted : prediction.total_time_formatted }}
       </div>
+
+        <!-- Stop time breakdown -->
+        <div v-if="predictionStore.totalStopTimeSeconds > 0" class="text-slate-500 text-xs font-mono mb-2">
+          {{ prediction.total_time_formatted }} {{ $t('results.running_time') }} + {{ formatStopTime(predictionStore.totalStopTimeSeconds) }} {{ $t('results.stop_time') }}
+        </div>
 
         <div class="text-slate-400 text-sm font-mono">
           {{ $t('results.confidence_interval') }}: <span class="text-emerald-300">{{ prediction.confidence_interval.lower_formatted }}</span> -
@@ -73,7 +78,7 @@
             {{ $t('results.reset_zoom') }}
           </button>
           
-          <div class="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 w-full sm:w-auto">
+          <div v-if="maxValidLevel > 1" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 w-full sm:w-auto">
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $t('results.granularity') }}</span>
             <input
               v-model.number="localSplitLevel"
@@ -159,6 +164,7 @@
       :show="showAnnotationModal"
       :distance-km="pendingAnnotationDistance"
       :predicted-time="pendingAnnotationPredictedTime"
+      :cumulative-elevation="pendingAnnotationElevation"
       :anchor="annotationAnchor"
       :annotation="editingAnnotation"
       @close="closeAnnotationModal"
@@ -170,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useGpxStore } from '../stores/gpx'
 import { usePredictionStore } from '../stores/prediction'
 import { useI18n } from 'vue-i18n'
@@ -208,6 +214,9 @@ const isProfileZoomed = ref(false)
 const showAnnotationModal = ref(false)
 const pendingAnnotationDistance = ref(null)
 const pendingAnnotationPredictedTime = ref(null)
+const pendingAnnotationElevation = computed(() => {
+  return getCumulativeElevation(pendingAnnotationDistance.value)
+})
 const annotationAnchor = ref(null)
 const selectedRange = ref(null)
 const selectedRangeTime = ref(null)
@@ -222,6 +231,41 @@ const editingAnnotation = ref(null)
 const prevBodyOverflow = ref('')
 const prevBodyPaddingRight = ref('')
 const showMap = ref(true)
+
+// Calculate cumulative D+ and D- at a given distance
+const getCumulativeElevation = (distanceKm) => {
+  if (!gpxStore.points || gpxStore.points.length < 2 || !Number.isFinite(distanceKm)) {
+    return { dPlus: 0, dMinus: 0 }
+  }
+
+  const targetM = distanceKm * 1000
+  let dPlus = 0
+  let dMinus = 0
+
+  for (let i = 1; i < gpxStore.points.length; i++) {
+    const prev = gpxStore.points[i - 1]
+    const curr = gpxStore.points[i]
+
+    if (prev.distance >= targetM) break
+
+    const elevDiff = curr.elevation - prev.elevation
+    if (elevDiff > 0) {
+      dPlus += elevDiff
+    } else {
+      dMinus += Math.abs(elevDiff)
+    }
+
+    // If we crossed the target distance, interpolate
+    if (curr.distance >= targetM && prev.distance < targetM) {
+      break
+    }
+  }
+
+  return {
+    dPlus: Math.round(dPlus),
+    dMinus: Math.round(dMinus)
+  }
+}
 
 // Group segments by gradient changes
 const getSplitGrade = (segment) => {
@@ -264,45 +308,80 @@ const smoothSegmentGrades = (segments, windowMeters) => {
 const groupSegmentsByGradient = (segments, gradientThreshold, maxSegmentLength, signChangeMinGrade) => {
   if (!segments || segments.length === 0) return []
 
-  const grouped = []
-  let currentGroup = [segments[0]]
-  let currentStart = segments[0].distance_m
+  // Step 1: Split by terrain type (uphill/flat/downhill) - these are mandatory splits
+  const FLAT_THRESHOLD = 2.0 // grades between -2% and +2% are considered flat
 
-  for (let i = 1; i < segments.length; i++) {
-    const prev = segments[i - 1]
-    const curr = segments[i]
-
-    const prevGrade = getSplitGrade(prev) * 100
-    const currGrade = getSplitGrade(curr) * 100
-
-    const gradeChange = Math.abs(currGrade - prevGrade)
-    const signChange = (prevGrade * currGrade < 0) &&
-                       (Math.abs(prevGrade) > signChangeMinGrade || Math.abs(currGrade) > signChangeMinGrade)
-    const currentLength = curr.distance_m - currentStart
-
-    // Different sensitivity for uphill vs downhill
-    let effectiveThreshold = gradientThreshold
-
-    // If both segments are uphill, be less sensitive (higher threshold)
-    if (prevGrade > 0 && currGrade > 0) {
-      effectiveThreshold = gradientThreshold * 1.2
-    }
-    // If both segments are downhill, be more sensitive (lower threshold)
-    else if (prevGrade < -1 && currGrade < -1) {
-      effectiveThreshold = gradientThreshold * 0.8
-    }
-
-    if (gradeChange > effectiveThreshold || signChange || currentLength > maxSegmentLength) {
-      grouped.push(currentGroup)
-      currentGroup = [curr]
-      currentStart = curr.distance_m
-    } else {
-      currentGroup.push(curr)
-    }
+  const getTerrainType = (grade) => {
+    const g = grade * 100
+    if (g > FLAT_THRESHOLD) return 'up'
+    if (g < -FLAT_THRESHOLD) return 'down'
+    return 'flat'
   }
 
-  if (currentGroup.length > 0) {
-    grouped.push(currentGroup)
+  // First pass: split by terrain type changes
+  const terrainSections = []
+  let currentSection = [segments[0]]
+  let currentTerrain = getTerrainType(getSplitGrade(segments[0]))
+
+  for (let i = 1; i < segments.length; i++) {
+    const curr = segments[i]
+    const currTerrain = getTerrainType(getSplitGrade(curr))
+
+    if (currTerrain !== currentTerrain) {
+      terrainSections.push({ segments: currentSection, terrain: currentTerrain })
+      currentSection = [curr]
+      currentTerrain = currTerrain
+    } else {
+      currentSection.push(curr)
+    }
+  }
+  if (currentSection.length > 0) {
+    terrainSections.push({ segments: currentSection, terrain: currentTerrain })
+  }
+
+  // Step 2: Within each terrain section, apply max length and grade threshold
+  const grouped = []
+
+  for (const section of terrainSections) {
+    const sectionSegments = section.segments
+    if (sectionSegments.length === 0) continue
+
+    let currentGroup = [sectionSegments[0]]
+    let currentStart = sectionSegments[0].distance_m
+
+    for (let i = 1; i < sectionSegments.length; i++) {
+      const prev = sectionSegments[i - 1]
+      const curr = sectionSegments[i]
+
+      const prevGrade = getSplitGrade(prev) * 100
+      const currGrade = getSplitGrade(curr) * 100
+      const gradeChange = Math.abs(currGrade - prevGrade)
+      const currentLength = curr.distance_m - currentStart
+
+      // Within same terrain type, only split by grade change or max length
+      let effectiveThreshold = gradientThreshold
+
+      // Be less sensitive within uphills (they naturally vary more)
+      if (section.terrain === 'up') {
+        effectiveThreshold = gradientThreshold * 1.5
+      }
+      // Be moderately sensitive within downhills
+      else if (section.terrain === 'down') {
+        effectiveThreshold = gradientThreshold * 1.2
+      }
+
+      if (gradeChange > effectiveThreshold || currentLength > maxSegmentLength) {
+        grouped.push(currentGroup)
+        currentGroup = [curr]
+        currentStart = curr.distance_m
+      } else {
+        currentGroup.push(curr)
+      }
+    }
+
+    if (currentGroup.length > 0) {
+      grouped.push(currentGroup)
+    }
   }
 
   return grouped
@@ -351,12 +430,14 @@ const formatGroupedSegments = (segmentGroups) => {
 }
 
 // Thresholds configuration
+// Note: signChange is no longer used (terrain splits are now mandatory)
+// maxLength only applies within a continuous terrain section
 const thresholds = {
-  1: { gradient: 20.0, signChange: 20.0, maxLength: 20000, smoothWindow: 800 }, // Very coarse
-  2: { gradient: 12.0, signChange: 12.0, maxLength: 15000, smoothWindow: 500 },  // Coarse
-  3: { gradient: 6.0, signChange: 6.0, maxLength: 10000, smoothWindow: 300 },    // Medium
-  4: { gradient: 3.0, signChange: 3.0, maxLength: 6000, smoothWindow: 200 },     // Fine
-  5: { gradient: 1.0, signChange: 1.0, maxLength: 3000, smoothWindow: 150 }      // Very fine
+  1: { gradient: 20.0, signChange: 20.0, maxLength: 30000, smoothWindow: 800 }, // Very coarse
+  2: { gradient: 12.0, signChange: 12.0, maxLength: 20000, smoothWindow: 500 },  // Coarse
+  3: { gradient: 8.0, signChange: 6.0, maxLength: 15000, smoothWindow: 300 },    // Medium
+  4: { gradient: 5.0, signChange: 3.0, maxLength: 8000, smoothWindow: 200 },     // Fine
+  5: { gradient: 2.0, signChange: 1.0, maxLength: 4000, smoothWindow: 150 }      // Very fine
 }
 
 const MAX_SEGMENTS = 200
@@ -713,6 +794,14 @@ const formatPace = (paceDecimal) => {
   const minutes = Math.floor(paceDecimal)
   const seconds = Math.round((paceDecimal - minutes) * 60)
   return `${minutes}m${seconds.toString().padStart(2, '0')}s/km`
+}
+
+const formatStopTime = (totalSeconds) => {
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const m = Math.floor(totalSeconds / 60)
+  const s = totalSeconds % 60
+  if (s === 0) return `${m}m`
+  return `${m}m${s.toString().padStart(2, '0')}s`
 }
 
 const formatDate = (dateStr) => {

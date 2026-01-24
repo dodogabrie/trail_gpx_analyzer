@@ -113,6 +113,8 @@
     "edit_annotation": "Edit",
     "selected_range": "Selected Range",
     "time": "Time",
+    "running_time": "running",
+    "stop_time": "stops",
     "elevation_pace_title": "Elevation & Pace Profile",
     "interactive_analysis": "Interactive Analysis",
     "granularity": "Granularity",
@@ -180,18 +182,69 @@
   "howitworks": {
     "badge": "How it works",
     "title": "How GPX Analyzer Works",
-    "subtitle": "A physics-first model, refined with your data to reflect how you really run on trails.",
+    "subtitle": "A physics-first model that learns from your data to predict how you actually run on trails.",
+    "tiers": {
+      "title": "Progressive Learning System",
+      "intro": "The more activities you share, the more accurate your predictions become. The system automatically advances through three tiers as it learns your running profile.",
+      "tier1": {
+        "title": "Physics Baseline",
+        "activities": "0-4 activities",
+        "text": "Uses biomechanical principles to predict pace based on terrain gradient. Models how energy cost changes with hill steepness, differentiating between uphill (energy-limited) and downhill (technique-limited) running."
+      },
+      "tier2": {
+        "title": "Personalized Physics",
+        "activities": "5-14 activities",
+        "text": "Learns your individual running characteristics. Optimizes model parameters to match your actual performance patterns - your climbing efficiency, downhill technique, and how fatigue affects you over distance."
+      },
+      "tier3": {
+        "title": "Physics + Machine Learning",
+        "activities": "15+ activities",
+        "text": "Combines personalized physics with adaptive ML corrections. Learns subtle patterns that pure physics cannot capture: terrain roughness effects, your response to grade transitions, and cumulative fatigue on different terrain types."
+      }
+    },
+    "learning": {
+      "title": "What We Learn From Your Data",
+      "uphill": {
+        "title": "Uphill Efficiency",
+        "text": "How well you climb relative to the average runner. Some athletes are natural climbers, others prefer flats."
+      },
+      "downhill": {
+        "title": "Downhill Technique",
+        "text": "Your comfort and speed on descents. Technical ability and risk tolerance vary significantly between runners."
+      },
+      "fatigue": {
+        "title": "Fatigue Response",
+        "text": "How your pace degrades as you accumulate distance and elevation. Critical for ultra-distance predictions."
+      },
+      "baseline": {
+        "title": "Baseline Speed",
+        "text": "Your flat-terrain pace that anchors all predictions. Everything else is calculated relative to this."
+      }
+    },
     "physics": {
-      "title": "Physics model",
-      "text": "We simulate effort over the route using elevation, gradient, distance, and terrain assumptions. This gives a baseline that respects the mechanics of climbing, descending, and fatigue."
+      "title": "Physics Foundation",
+      "text": "The core model is built on biomechanical research. Uphill running increases metabolic energy cost exponentially with gradient. Downhill running is limited by technique - gravity helps, but braking and foot control become the bottleneck. We also model eccentric fatigue: downhill running causes cumulative muscle damage that reduces performance in subsequent sections.",
+      "chart_placeholder": "Pace vs Grade curve visualization (coming soon)"
     },
-    "ml": {
-      "title": "ML corrections",
-      "text": "Your Strava history is used to calibrate the model and correct it where your real-world performance differs from the baseline."
+    "effort": {
+      "title": "Effort Level Adjustments",
+      "intro": "Predictions adapt to your intended effort. The confidence interval shifts based on whether you are racing, training, or recovering.",
+      "race": {
+        "title": "Race",
+        "text": "Aggressive pacing, optimal conditions assumed"
+      },
+      "training": {
+        "title": "Training",
+        "text": "Realistic pace, typical conditions"
+      },
+      "recovery": {
+        "title": "Recovery",
+        "text": "Conservative pacing, relaxed effort"
+      }
     },
-    "output": {
-      "title": "Practical race plan",
-      "text": "The result is a segment-by-segment pacing strategy and finish-time estimate you can actually execute on race day."
+    "privacy": {
+      "title": "Your Data Stays Yours",
+      "text": "All learning happens exclusively on your individual data. No cross-user patterns, no crowd-sourced models. Your performance profile is unique to your account and cannot be accessed or transferred."
     }
   },
   "about": {

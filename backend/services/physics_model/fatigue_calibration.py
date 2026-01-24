@@ -189,3 +189,100 @@ def estimate_route_fatigue_alpha(
     )
 
     return weighted_alpha
+
+
+def calibrate_ultra_fatigue_params(
+    race_results: List[Dict],
+    user_params: Dict[str, float]
+) -> Dict[str, float]:
+    """Calibrate ultra-distance fatigue parameters from race data.
+
+    Uses actual race results (distance + finish time) to calibrate
+    the ultra_beta and ultra_gamma parameters for the two-phase
+    fatigue model.
+
+    Args:
+        race_results: List of race result dicts, each containing:
+            - 'distance_km': Race distance in kilometers
+            - 'time_hours': Actual finish time in hours
+            - 'elevation_gain_m': Total elevation gain (optional)
+        user_params: User's calibrated physics parameters (v_flat, k_up, etc.)
+
+    Returns:
+        Dict with calibrated parameters:
+            - 'ultra_beta': Ultra fatigue intensity (default 0.4)
+            - 'ultra_gamma': Non-linearity exponent (default 1.5)
+
+    Example:
+        >>> results = [
+        ...     {'distance_km': 50, 'time_hours': 6.5},
+        ...     {'distance_km': 100, 'time_hours': 18.0},
+        ...     {'distance_km': 170, 'time_hours': 28.0}
+        ... ]
+        >>> params = calibrate_ultra_fatigue_params(results, user_params)
+        >>> print(params)
+        {'ultra_beta': 0.42, 'ultra_gamma': 1.48}
+    """
+    # Default values
+    default_params = {
+        'ultra_beta': 0.4,
+        'ultra_gamma': 1.5
+    }
+
+    if not race_results:
+        return default_params
+
+    # Filter to ultra-distance races only (>42km)
+    ultra_races = [r for r in race_results if r.get('distance_km', 0) > 42]
+
+    if len(ultra_races) < 2:
+        # Need at least 2 ultra races for calibration
+        return default_params
+
+    # Sort by distance
+    ultra_races = sorted(ultra_races, key=lambda r: r['distance_km'])
+
+    # Extract data for fitting
+    distances_km = np.array([r['distance_km'] for r in ultra_races])
+    actual_times_h = np.array([r['time_hours'] for r in ultra_races])
+
+    # Estimate expected times without ultra fatigue using flat speed approximation
+    v_flat = user_params.get('v_flat', 3.33)  # m/s
+    base_time_h = distances_km / (v_flat * 3.6)  # Convert to km/h, then hours
+
+    # Calculate observed slowdown ratios beyond base expectation
+    # This approximates the effect of ultra_multiplier
+    observed_ratios = actual_times_h / base_time_h
+
+    # Convert distances to ultra_ratio space
+    marathon_km = 42.0
+    ultra_ratios = (distances_km - marathon_km) / marathon_km
+
+    # Simple log-linear regression to estimate gamma
+    # ultra_multiplier = 1 + beta * ratio^gamma
+    # ln(multiplier - 1) = ln(beta) + gamma * ln(ratio)
+    try:
+        # Only use positive ratios (distances > marathon)
+        valid_mask = ultra_ratios > 0
+        if np.sum(valid_mask) < 2:
+            return default_params
+
+        log_ratios = np.log(ultra_ratios[valid_mask])
+        # Estimate multiplier contribution (subtract base fatigue estimate)
+        estimated_multipliers = observed_ratios[valid_mask] / 1.1  # Rough base fatigue estimate
+        log_mult_minus_1 = np.log(np.maximum(estimated_multipliers - 1.0, 0.01))
+
+        # Linear regression: log_mult_minus_1 = ln(beta) + gamma * log_ratios
+        if len(log_ratios) >= 2:
+            coeffs = np.polyfit(log_ratios, log_mult_minus_1, 1)
+            gamma = max(1.0, min(3.0, coeffs[0]))  # Clamp to [1.0, 3.0]
+            beta = max(0.1, min(1.0, np.exp(coeffs[1])))  # Clamp to [0.1, 1.0]
+
+            return {
+                'ultra_beta': round(beta, 3),
+                'ultra_gamma': round(gamma, 3)
+            }
+    except (ValueError, np.linalg.LinAlgError):
+        pass
+
+    return default_params

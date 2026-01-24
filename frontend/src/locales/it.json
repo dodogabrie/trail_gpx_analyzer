@@ -113,6 +113,8 @@
     "edit_annotation": "Modifica",
     "selected_range": "Intervallo selezionato",
     "time": "Tempo",
+    "running_time": "corsa",
+    "stop_time": "soste",
     "elevation_pace_title": "Profilo elevazione e passo",
     "interactive_analysis": "Analisi interattiva",
     "granularity": "Dettaglio",
@@ -180,29 +182,80 @@
   "howitworks": {
     "badge": "Come funziona",
     "title": "Come funziona GPX Analyzer",
-    "subtitle": "Un modello fisico alla base, rifinito con i tuoi dati per riflettere come corri davvero sul trail.",
+    "subtitle": "Un modello fisico che impara dai tuoi dati per prevedere come corri davvero sui trail.",
+    "tiers": {
+      "title": "Sistema di Apprendimento Progressivo",
+      "intro": "Piu' attivita' condividi, piu' accurate diventano le previsioni. Il sistema avanza automaticamente attraverso tre livelli mentre impara il tuo profilo di corsa.",
+      "tier1": {
+        "title": "Base Fisica",
+        "activities": "0-4 attivita'",
+        "text": "Usa principi biomeccanici per prevedere il passo in base alla pendenza. Modella come il costo energetico cambia con la ripidita', distinguendo tra salita (limitata dall'energia) e discesa (limitata dalla tecnica)."
+      },
+      "tier2": {
+        "title": "Fisica Personalizzata",
+        "activities": "5-14 attivita'",
+        "text": "Impara le tue caratteristiche individuali di corsa. Ottimizza i parametri del modello per corrispondere ai tuoi pattern reali - la tua efficienza in salita, tecnica in discesa, e come la fatica ti influenza sulla distanza."
+      },
+      "tier3": {
+        "title": "Fisica + Machine Learning",
+        "activities": "15+ attivita'",
+        "text": "Combina la fisica personalizzata con correzioni ML adattive. Impara pattern sottili che la fisica pura non puo' catturare: effetti della rugosita' del terreno, la tua risposta alle transizioni di pendenza, e la fatica cumulativa su diversi tipi di terreno."
+      }
+    },
+    "learning": {
+      "title": "Cosa Impariamo dai Tuoi Dati",
+      "uphill": {
+        "title": "Efficienza in Salita",
+        "text": "Quanto bene sali rispetto al runner medio. Alcuni atleti sono scalatori naturali, altri preferiscono il piano."
+      },
+      "downhill": {
+        "title": "Tecnica in Discesa",
+        "text": "La tua velocita' e sicurezza in discesa. Abilita' tecnica e tolleranza al rischio variano molto tra i runner."
+      },
+      "fatigue": {
+        "title": "Risposta alla Fatica",
+        "text": "Come il tuo passo degrada accumulando distanza e dislivello. Critico per previsioni su ultra-distanze."
+      },
+      "baseline": {
+        "title": "Velocita' Base",
+        "text": "Il tuo passo in piano che ancora tutte le previsioni. Tutto il resto e' calcolato in relazione a questo."
+      }
+    },
     "physics": {
-      "title": "Modello fisico",
-      "text": "Simuliamo lo sforzo lungo il percorso usando elevazione, pendenza, distanza e ipotesi sul terreno. Questo crea una base coerente con salita, discesa e fatica."
+      "title": "Fondamenta Fisiche",
+      "text": "Il modello core e' costruito su ricerche biomeccaniche. La corsa in salita aumenta il costo energetico esponenzialmente con la pendenza. La discesa e' limitata dalla tecnica - la gravita' aiuta, ma frenata e controllo del piede diventano il collo di bottiglia. Modelliamo anche la fatica eccentrica: la discesa causa danni muscolari cumulativi che riducono la performance nelle sezioni successive.",
+      "chart_placeholder": "Visualizzazione curva Passo vs Pendenza (in arrivo)"
     },
-    "ml": {
-      "title": "Correzioni ML",
-      "text": "La tua cronologia Strava calibra il modello e lo corregge dove la performance reale si discosta dalla base."
+    "effort": {
+      "title": "Regolazione Livello di Sforzo",
+      "intro": "Le previsioni si adattano allo sforzo previsto. L'intervallo di confidenza si sposta in base a se stai gareggiando, allenandoti o recuperando.",
+      "race": {
+        "title": "Gara",
+        "text": "Passo aggressivo, condizioni ottimali"
+      },
+      "training": {
+        "title": "Allenamento",
+        "text": "Passo realistico, condizioni tipiche"
+      },
+      "recovery": {
+        "title": "Recupero",
+        "text": "Passo conservativo, sforzo rilassato"
+      }
     },
-    "output": {
-      "title": "Piano di gara pratico",
-      "text": "Il risultato è una strategia di passo segmento per segmento e una stima del tempo finale che puoi davvero eseguire in gara."
+    "privacy": {
+      "title": "I Tuoi Dati Restano Tuoi",
+      "text": "Tutto l'apprendimento avviene esclusivamente sui tuoi dati individuali. Nessun pattern cross-utente, nessun modello crowd-sourced. Il tuo profilo di performance e' unico per il tuo account e non puo' essere acceduto o trasferito."
     }
   },
   "about": {
     "badge": "Chi sono",
     "title": "Edoardo Gabrielli",
     "subtitle": "Trail runner, sviluppatore software e fisico.",
-    "body1": "Sono un trail runner amatore e uno sviluppatore software con un background nella fisica. In questo progetto applico la modellazione e l'analisi dei dati per trasformare tracce GPX in indicazioni utili per la pianificazione gara.",
+    "body1": "Sono un trail runner amatore e uno sviluppatore software laureato in fisica. In questo progetto applico la modellazione e l'analisi dei dati per trasformare tracce GPX in indicazioni utili per la pianificazione gara.",
     "body2": "Ho sviluppato GPX Analyzer per colmare i limiti che sentivo nella pianificazione gara, e ora voglio condividerlo con la comunita'.",
     "image_alt": "Ritratto di Edoardo Gabrielli",
-    "personal_title": "Nato dal mio training, affinato per il tuo.",
-    "personal_text": "E' iniziato come strumento personale per le mie uscite in montagna, poi e' cresciuto per aiutare altri atleti con la stessa onesta' e precisione.",
+    "personal_title": "Nato dalle mie uscite lunghe, affinato per le tue.",
+    "personal_text": "E' iniziato come strumento personale per gare e allenamenti lunghi, poi e' cresciuto per aiutare altri atleti con la stessa onesta' e precisione.",
     "contact_label": "Contatto",
     "contact_email": "dodogabrie97@live.it",
     "contact_strava": "Strava"

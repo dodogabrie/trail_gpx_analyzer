@@ -24,7 +24,14 @@
 
       <div class="mb-3">
         <label class="block text-[10px] font-semibold uppercase tracking-[0.2em] mb-1 text-slate-500">Location</label>
-        <p class="text-slate-900 font-mono font-bold text-base">{{ displayDistance().toFixed(2) }} km</p>
+        <div class="flex items-baseline gap-3">
+          <p class="text-slate-900 font-mono font-bold text-base">{{ displayDistance().toFixed(2) }} km</p>
+          <span class="text-xs text-slate-500 font-mono">
+            <span class="text-emerald-600">+{{ cumulativeElevation?.dPlus || 0 }}m</span>
+            <span class="mx-1">/</span>
+            <span class="text-rose-500">-{{ cumulativeElevation?.dMinus || 0 }}m</span>
+          </span>
+        </div>
       </div>
 
       <div v-if="predictedTime" class="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
@@ -56,15 +63,31 @@
         {{ expanded ? 'Hide details' : 'Add details' }}
       </button>
 
-      <div v-if="expanded" class="mb-3">
-        <label class="block text-[10px] font-semibold uppercase tracking-[0.2em] mb-2 text-slate-500">Label</label>
-        <input
-          v-model="label"
-          type="text"
-          class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors text-sm"
-          placeholder="Edit label text..."
-        >
-        <p class="text-[10px] text-slate-500 mt-1">Format: Text - HH:MM:SS (time is predicted arrival)</p>
+      <div v-if="expanded" class="mb-3 space-y-3">
+        <div>
+          <label class="block text-[10px] font-semibold uppercase tracking-[0.2em] mb-2 text-slate-500">Label</label>
+          <input
+            v-model="label"
+            type="text"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors text-sm"
+            placeholder="Edit label text..."
+          >
+          <p class="text-[10px] text-slate-500 mt-1">Format: Text - HH:MM:SS (time is predicted arrival)</p>
+        </div>
+        <div>
+          <label class="block text-[10px] font-semibold uppercase tracking-[0.2em] mb-2 text-slate-500">Stop Time</label>
+          <div class="flex items-center gap-2">
+            <input
+              v-model.number="stopTimeSeconds"
+              type="number"
+              min="0"
+              step="10"
+              class="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors text-sm font-mono"
+            >
+            <span class="text-sm text-slate-500">seconds</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Time spent at this point (added to total predicted time)</p>
+        </div>
       </div>
 
       <div class="flex gap-2 justify-end mt-4">
@@ -86,6 +109,10 @@ const props = defineProps({
   show: Boolean,
   distanceKm: Number,
   predictedTime: String,
+  cumulativeElevation: {
+    type: Object,
+    default: () => ({ dPlus: 0, dMinus: 0 })
+  },
   anchor: {
     type: Object,
     default: null
@@ -100,6 +127,7 @@ const emit = defineEmits(['close', 'save', 'delete'])
 
 const annotationType = ref('aid_station')
 const label = ref('')
+const stopTimeSeconds = ref(30)
 const expanded = ref(false)
 const isEditing = computed(() => !!props.annotation?.id)
 const displayDistance = () => (Number.isFinite(props.distanceKm) ? props.distanceKm : 0)
@@ -165,9 +193,11 @@ watch(() => props.show, (show) => {
     if (isEditing.value) {
       annotationType.value = props.annotation.type || 'aid_station'
       label.value = props.annotation.label || ''
+      stopTimeSeconds.value = props.annotation.stop_time_seconds ?? 30
     } else {
       annotationType.value = 'aid_station'
       label.value = getDefaultLabel('aid_station')
+      stopTimeSeconds.value = 30
     }
   }
 })
@@ -190,7 +220,8 @@ const save = () => {
   const annotation = {
     type: annotationType.value,
     distance_km: props.distanceKm,
-    label: label.value.trim()
+    label: label.value.trim(),
+    stop_time_seconds: Math.max(0, stopTimeSeconds.value || 0)
   }
 
   emit('save', annotation)
